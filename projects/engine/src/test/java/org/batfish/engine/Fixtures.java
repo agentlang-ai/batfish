@@ -9,6 +9,7 @@ import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.SortedMap;
+import java.util.function.Supplier;
 import org.batfish.engine.SnapshotRequest.Device;
 import org.batfish.engine.SnapshotRequest.Environment;
 import org.batfish.engine.SnapshotRequest.Link;
@@ -18,6 +19,27 @@ import org.batfish.engine.SnapshotRequest.LinuxInterface;
 final class Fixtures {
 
   private Fixtures() {}
+
+  /**
+   * Config text variant: "" for the original, ".redacted" for the same file passed through
+   * NOCFlow's relay redactor (regenerate with the redactor if a fixture changes).
+   */
+  private static String variant = "";
+
+  /** Runs {@code body} with every fixture read from its {@code suffix} variant. */
+  static <T> T withVariant(String suffix, Supplier<T> body) {
+    String previous = variant;
+    variant = suffix;
+    try {
+      return body.get();
+    } finally {
+      variant = previous;
+    }
+  }
+
+  private static String config(String path) {
+    return text(path + variant);
+  }
 
   static String text(String path) {
     try (InputStream in =
@@ -35,8 +57,8 @@ final class Fixtures {
   static SnapshotRequest dc1Eos() {
     return new SnapshotRequest(
         ImmutableList.of(
-            new Device("core1", Dialect.ARISTA_EOS, text("dc1-eos/core1.cfg")),
-            new Device("core2", Dialect.ARISTA_EOS, text("dc1-eos/core2.cfg"))),
+            new Device("core1", Dialect.ARISTA_EOS, config("dc1-eos/core1.cfg")),
+            new Device("core2", Dialect.ARISTA_EOS, config("dc1-eos/core2.cfg"))),
         ImmutableList.of(new Link("core1", "Ethernet48", "core2", "Ethernet48")),
         Environment.NONE);
   }
@@ -44,7 +66,7 @@ final class Fixtures {
   /** eos-policy: edge1 alone, exporting through route-map EXPORT-SITE; one unmodeled BGP knob. */
   static SnapshotRequest eosPolicy() {
     return new SnapshotRequest(
-        ImmutableList.of(new Device("edge1", Dialect.ARISTA_EOS, text("eos-policy/edge1.cfg"))),
+        ImmutableList.of(new Device("edge1", Dialect.ARISTA_EOS, config("eos-policy/edge1.cfg"))),
         ImmutableList.of(),
         Environment.NONE);
   }
@@ -62,8 +84,8 @@ final class Fixtures {
   static SnapshotRequest crpd() {
     return new SnapshotRequest(
         ImmutableList.of(
-            new Device("r1", Dialect.JUNOS, text("crpd/r1.set")),
-            new Device("r2", Dialect.JUNOS, text("crpd/r2.set"))),
+            new Device("r1", Dialect.JUNOS, config("crpd/r1.set")),
+            new Device("r2", Dialect.JUNOS, config("crpd/r2.set"))),
         ImmutableList.of(),
         Environment.NONE);
   }
@@ -79,10 +101,21 @@ final class Fixtures {
   static SnapshotRequest frrOspfBgp(Environment environment) {
     return new SnapshotRequest(
         ImmutableList.of(
-            new Device("r1", Dialect.FRR_LINUX, text("frr-ospf-bgp/r1.frr"), r1Interfaces()),
-            new Device("r2", Dialect.FRR_LINUX, text("frr-ospf-bgp/r2.frr"), r2Interfaces())),
+            new Device("r1", Dialect.FRR_LINUX, config("frr-ospf-bgp/r1.frr"), r1Interfaces()),
+            new Device("r2", Dialect.FRR_LINUX, config("frr-ospf-bgp/r2.frr"), r2Interfaces())),
         ImmutableList.of(new Link("r1", "eth2", "r2", "eth1")),
         environment);
+  }
+
+  /** frr-ospf-bgp with a BGP password and OSPF MD5 keys on both routers. */
+  static SnapshotRequest frrOspfBgpAuth() {
+    return new SnapshotRequest(
+        ImmutableList.of(
+            new Device("r1", Dialect.FRR_LINUX, config("frr-ospf-bgp/r1-auth.frr"), r1Interfaces()),
+            new Device(
+                "r2", Dialect.FRR_LINUX, config("frr-ospf-bgp/r2-auth.frr"), r2Interfaces())),
+        ImmutableList.of(new Link("r1", "eth2", "r2", "eth1")),
+        Environment.NONE);
   }
 
   static List<LinuxInterface> r1Interfaces() {

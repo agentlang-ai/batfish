@@ -309,7 +309,7 @@ components:
           type: string
           enum:
             [unparsed, unrecognized, unimplemented, redflag, undefined-reference, agreement,
-             dialect-gap, redeclared-clause]
+             dialect-gap, redeclared-clause, redacted-line]
         line: { type: integer }
         text: { type: string }
     Facts:

@@ -51,6 +51,9 @@ public final class SnapshotBuilder {
       @Nonnull SortedMap<String, DeviceFacts> facts,
       @Nonnull List<CoverageHole> holes) {}
 
+  /** The marker NOCFlow's relay redactor leaves in place of a dropped line. */
+  static final String REDACTED_LINE = "NOCFLOW-REDACTED-LINE";
+
   private final EngineBatfish _engine;
 
   public SnapshotBuilder(@Nonnull EngineBatfish engine) {
@@ -181,6 +184,20 @@ public final class SnapshotBuilder {
                 "unparsed",
                 null,
                 "hostname in config does not match lowered name"));
+      }
+      // The relay's redactor drops a line it suspects of carrying an unknown secret form.
+      // What the line configured is gone, so the device is not fully known.
+      String[] lines = device.configText().split("\n", -1);
+      for (int i = 0; i < lines.length; i++) {
+        if (lines[i].contains(REDACTED_LINE)) {
+          holes.add(
+              new CoverageHole(
+                  node,
+                  CoverageHole.UNCLASSIFIED,
+                  "redacted-line",
+                  i + 1,
+                  "a line was removed by redaction"));
+        }
       }
       for (InputComposer.Gap gap : InputComposer.compose(device).gaps()) {
         holes.add(new CoverageHole(node, gap.family(), "dialect-gap", null, gap.text()));
