@@ -14,9 +14,11 @@ import javax.annotation.Nullable;
 public record SnapshotRequest(
     @Nonnull List<Device> devices, @Nonnull List<Link> layer1, @Nonnull Environment environment) {
 
+  /** Optional parts may be omitted, as in the HTTP contract. */
   public SnapshotRequest {
     devices = ImmutableList.copyOf(devices);
-    layer1 = ImmutableList.copyOf(layer1);
+    layer1 = layer1 == null ? ImmutableList.of() : ImmutableList.copyOf(layer1);
+    environment = environment == null ? Environment.NONE : environment;
   }
 
   /**
@@ -37,7 +39,7 @@ public record SnapshotRequest(
   /** A kernel interface on an FRR host: its name, CIDR addresses, and whether it is up. */
   public record LinuxInterface(@Nonnull String name, @Nonnull List<String> addresses, boolean up) {
     public LinuxInterface {
-      addresses = ImmutableList.copyOf(addresses);
+      addresses = addresses == null ? ImmutableList.of() : ImmutableList.copyOf(addresses);
     }
   }
 
@@ -57,8 +59,9 @@ public record SnapshotRequest(
     public static final Environment NONE = new Environment(ImmutableSet.of(), ImmutableSet.of());
 
     public Environment {
-      interfacesDown = ImmutableSet.copyOf(interfacesDown);
-      nodesDown = ImmutableSet.copyOf(nodesDown);
+      interfacesDown =
+          interfacesDown == null ? ImmutableSet.of() : ImmutableSet.copyOf(interfacesDown);
+      nodesDown = nodesDown == null ? ImmutableSet.of() : ImmutableSet.copyOf(nodesDown);
     }
   }
 }
