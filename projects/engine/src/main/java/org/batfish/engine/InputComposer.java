@@ -1,7 +1,9 @@
 package org.batfish.engine;
 
 import com.google.common.collect.ImmutableList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.annotation.Nonnull;
@@ -23,7 +25,7 @@ public final class InputComposer {
   private static final Pattern FRR_VERSION = Pattern.compile("(?m)^frr version (\\d+)\\.(\\d+)");
   private static final Pattern ROUTER_BGP = Pattern.compile("(?m)^router bgp ");
   private static final Pattern NO_EBGP_REQUIRES_POLICY =
-      Pattern.compile("(?m)^\\s*no bgp ebgp-requires-policy\\s*$");
+      Pattern.compile("^\\s*no bgp ebgp-requires-policy\\s*$");
   private static final Pattern BARE_EXIT = Pattern.compile("(?m)^[ \\t]*exit[ \\t]*\\n");
   private static final Pattern NO_EBGP_REQUIRES_POLICY_LINE =
       Pattern.compile("(?m)^[ \\t]*no bgp ebgp-requires-policy[ \\t]*\\n");
@@ -87,8 +89,9 @@ public final class InputComposer {
 
   /**
    * Whether some BGP instance runs with FRR's default {@code bgp ebgp-requires-policy} (FRR 7.4 and
-   * later), which Batfish does not model. Conservative: every {@code router bgp} needs its own
-   * {@code no bgp ebgp-requires-policy}.
+   * later), which Batfish does not model. Every distinct {@code router bgp} block needs its own
+   * {@code no bgp ebgp-requires-policy}; a block may be re-entered later in the text, as proposed
+   * changes do.
    */
   static boolean ebgpRequiresPolicy(String frr) {
     Matcher version = FRR_VERSION.matcher(frr);
@@ -99,9 +102,20 @@ public final class InputComposer {
         return false;
       }
     }
-    long routers = ROUTER_BGP.matcher(frr).results().count();
-    long disabled = NO_EBGP_REQUIRES_POLICY.matcher(frr).results().count();
-    return disabled < routers;
+    Set<String> routers = new HashSet<>();
+    Set<String> disabled = new HashSet<>();
+    String current = null;
+    for (String line : frr.split("\n", -1)) {
+      if (line.startsWith("router bgp ")) {
+        current = line.strip();
+        routers.add(current);
+      } else if (!line.isEmpty() && !Character.isWhitespace(line.charAt(0))) {
+        current = null;
+      } else if (current != null && NO_EBGP_REQUIRES_POLICY.matcher(line).matches()) {
+        disabled.add(current);
+      }
+    }
+    return !disabled.containsAll(routers);
   }
 
   /**
