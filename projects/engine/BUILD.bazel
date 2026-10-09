@@ -1,5 +1,5 @@
 load("@batfish//skylark:junit.bzl", "junit_tests")
-load("@rules_java//java:defs.bzl", "java_library")
+load("@rules_java//java:defs.bzl", "java_binary", "java_library")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -21,14 +21,29 @@ junit_tests(
     name = "engine_tests",
     size = "medium",
     srcs = glob(["src/test/java/**/*.java"]),
+    resource_strip_prefix = "projects/engine/src/test/resources",
+    resources = glob(["src/test/resources/**"]),
     deps = [
         ":engine",
         "//projects/batfish",
         "//projects/common",
         "//projects/common/src/test/java/org/batfish/datamodel:testlib",
+        "@maven//:com_fasterxml_jackson_core_jackson_core",
         "@maven//:com_google_code_findbugs_jsr305",
         "@maven//:com_google_guava_guava",
         "@maven//:junit_junit",
         "@maven//:org_hamcrest_hamcrest",
+    ],
+)
+
+# Rewrites the golden files under src/test/resources from the current engine.
+java_binary(
+    name = "update_goldens",
+    testonly = True,
+    main_class = "org.batfish.engine.Goldens",
+    runtime_deps = [
+        ":engine_tests_testlib",
+        "//projects/question",
+        "@maven//:org_apache_logging_log4j_log4j_core",
     ],
 )
