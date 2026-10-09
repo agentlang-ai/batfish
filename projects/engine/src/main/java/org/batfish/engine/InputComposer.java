@@ -3,6 +3,7 @@ package org.batfish.engine;
 import com.google.common.collect.ImmutableList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -32,14 +33,41 @@ public final class InputComposer {
 
   private InputComposer() {}
 
+  private static final Pattern HOSTNAME = Pattern.compile("(?m)^hostname\\s+\\S+[ \\t]*$");
+  private static final Pattern JUNOS_HOST_NAME =
+      Pattern.compile("(?m)^set system host-name\\s+\\S+[ \\t]*$");
+
   /** The snapshot input file for {@code device}. */
   public static @Nonnull Composed compose(@Nonnull Device device) {
     if (device.dialect() == Dialect.FRR_LINUX) {
       return composeFrrLinux(device);
     }
     return new Composed(
-        "!RANCID-CONTENT-TYPE: " + device.dialect().rancidType() + "\n" + device.configText(),
+        "!RANCID-CONTENT-TYPE: "
+            + device.dialect().rancidType()
+            + "\n"
+            + withHostname(device.configText(), device.dialect(), device.name()),
         ImmutableList.of());
+  }
+
+  /**
+   * Batfish names a node after the hostname in its config. The engine's node is the tenant-unique
+   * lowered name, which differs from the hostname when two sites reuse one, so the config's
+   * hostname is set to it. A config without one gets one.
+   */
+  static @Nonnull String withHostname(
+      @Nonnull String text, @Nonnull Dialect dialect, @Nonnull String name) {
+    String lowered = name.toLowerCase(Locale.ROOT);
+    if (dialect == Dialect.JUNOS) {
+      Matcher m = JUNOS_HOST_NAME.matcher(text);
+      return m.find()
+          ? m.replaceFirst(Matcher.quoteReplacement("set system host-name " + lowered))
+          : "set system host-name " + lowered + "\n" + text;
+    }
+    Matcher m = HOSTNAME.matcher(text);
+    return m.find()
+        ? m.replaceFirst(Matcher.quoteReplacement("hostname " + lowered))
+        : "hostname " + lowered + "\n" + text;
   }
 
   /**
@@ -49,7 +77,7 @@ public final class InputComposer {
    */
   private static Composed composeFrrLinux(Device device) {
     StringBuilder sb = new StringBuilder();
-    sb.append(device.name()).append('\n');
+    sb.append(device.name().toLowerCase(Locale.ROOT)).append('\n');
     sb.append("# This file describes the network interfaces\n");
     List<LinuxInterface> interfaces = device.linuxInterfaces();
     if (interfaces != null) {
@@ -66,7 +94,8 @@ public final class InputComposer {
       }
     }
     sb.append("# ports.conf --\n");
-    String frr = stripVtyshPreamble(device.configText());
+    String frr =
+        withHostname(stripVtyshPreamble(device.configText()), Dialect.FRR_LINUX, device.name());
     ImmutableList.Builder<Gap> gaps = ImmutableList.builder();
     if (ebgpRequiresPolicy(frr)) {
       gaps.add(

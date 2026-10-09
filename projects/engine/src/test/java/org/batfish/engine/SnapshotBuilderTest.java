@@ -131,18 +131,31 @@ public final class SnapshotBuilderTest {
     holes.forEach(h -> assertThat(h.family(), equalTo(CoverageHole.MANAGEMENT)));
   }
 
+  /**
+   * Two sites can reuse a hostname; the engine's node is the tenant-unique lowered name, and the
+   * config's hostname is set to it.
+   */
   @Test
-  public void hostnameMustMatchLoweredName() {
+  public void configHostnameIsSetToTheLoweredName() {
     SnapshotRequest request =
         new SnapshotRequest(
             ImmutableList.of(
-                new Device("not-core1", Dialect.ARISTA_EOS, Fixtures.text("dc1-eos/core1.cfg"))),
+                new Device("site-a-core1", Dialect.ARISTA_EOS, Fixtures.text("dc1-eos/core1.cfg")),
+                new Device("site-b-r1", Dialect.JUNOS, Fixtures.text("crpd/r1.set")),
+                new Device(
+                    "site-c-r1",
+                    Dialect.FRR_LINUX,
+                    Fixtures.text("frr-ospf-bgp/r1.frr"),
+                    Fixtures.r1Interfaces())),
             ImmutableList.of(),
             Environment.NONE);
 
-    List<CoverageHole> holes = build(request).holes();
+    SnapshotBuilder.Built built = build(request);
 
-    assertThat(holes.stream().map(CoverageHole::kind).toList(), hasItem(equalTo("unparsed")));
+    assertThat(
+        built.configurations().keySet(),
+        equalTo(ImmutableSet.of("site-a-core1", "site-b-r1", "site-c-r1")));
+    assertThat(built.holes().stream().map(CoverageHole::kind).toList(), not(hasItem("unparsed")));
   }
 
   @Test
