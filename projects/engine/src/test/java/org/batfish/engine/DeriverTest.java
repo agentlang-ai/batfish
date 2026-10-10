@@ -75,6 +75,42 @@ public final class DeriverTest {
   }
 
   @Test
+  public void frrWithdrawNetworkRemovesOnlyTheAdvertisement() {
+    SnapshotBuilder.Built base = _builder.build(Fixtures.frrOspfBgp());
+    assertThat(routes(dataPlane(base), "r2", "10.1.0.0/24"), hasSize(1));
+    Deriver.Derived withdrawn =
+        _deriver.derive(
+            base,
+            List.of(
+                new Change(
+                    "r1",
+                    List.of(
+                        "router bgp 65001",
+                        "address-family ipv4 unicast",
+                        "no network 10.1.0.0/24",
+                        "exit-address-family",
+                        "exit"))));
+    assertThat(withdrawn.introduced(), empty());
+    assertThat(routes(dataPlane(withdrawn.snapshot()), "r2", "10.1.0.0/24"), empty());
+    assertThat(routes(dataPlane(withdrawn.snapshot()), "r1", "10.1.0.0/24"), hasSize(1));
+    assertThat(routes(dataPlane(withdrawn.snapshot()), "r2", "1.1.1.1/32"), hasSize(1));
+    Deriver.Derived restored =
+        _deriver.derive(
+            withdrawn.snapshot(),
+            List.of(
+                new Change(
+                    "r1",
+                    List.of(
+                        "router bgp 65001",
+                        "address-family ipv4 unicast",
+                        "network 10.1.0.0/24",
+                        "exit-address-family",
+                        "exit"))));
+    assertThat(restored.introduced(), empty());
+    assertThat(routes(dataPlane(restored.snapshot()), "r2", "10.1.0.0/24"), hasSize(1));
+  }
+
+  @Test
   public void frrNewDenyClauseStopsExport() {
     Deriver.Derived d =
         derive(Fixtures.frrOspfBgp(), new Change("r1", List.of("route-map EXPORT-SITE deny 5")));
