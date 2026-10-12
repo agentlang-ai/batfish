@@ -93,6 +93,7 @@
         "type" : "ipv4 prefix-list"
       }
     ],
+    "vnis" : [ ],
     "vrfs" : [
       {
         "bgp" : {

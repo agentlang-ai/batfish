@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: NOCFlow Batfish engine
-  version: 1.1.0
+  version: 1.2.0
   description: >
     One tenant's what-if engine. NOCFlow puts a snapshot of the tenant's network
     (each device's redacted config text, the physical links, and the observed
@@ -343,7 +343,12 @@ components:
       properties:
         devices:
           type: object
-          description: Neutral configured facts per lowered node name. Empty lists are omitted.
+          description: >
+            Neutral configured facts per lowered node name. vnis is always present
+            (an empty list means no modeled VXLAN VNIs); other empty lists are omitted.
+            Each VNI includes vni, layer (l2/l3), vrf, sourceVrf, sourceAddress,
+            udpPort, vlan (L2 only), bumTransportMethod and bumTransportIps.
+            vxlanEdges reports Batfish-computed L2 tunnel edges, not live observations.
           additionalProperties: { type: object }
         holes:
           type: array
@@ -352,7 +357,7 @@ components:
       type: string
       enum:
         [routes, bgpSessionStatus, bgpSessionCompatibility, ospfSessionCompatibility, traceroute,
-         reachability, differentialReachability, layer3Edges]
+         reachability, differentialReachability, layer3Edges, vxlanEdges]
     QuestionParameters:
       type: object
       description: >

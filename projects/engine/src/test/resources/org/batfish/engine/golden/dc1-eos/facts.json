@@ -148,6 +148,7 @@
       }
     ],
     "node" : "core1",
+    "vnis" : [ ],
     "vrfs" : [
       {
         "name" : "default",
@@ -299,6 +300,7 @@
       }
     ],
     "node" : "core2",
+    "vnis" : [ ],
     "vrfs" : [
       {
         "name" : "default",

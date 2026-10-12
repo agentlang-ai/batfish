@@ -113,7 +113,8 @@ public final class Lifter {
             vrfs(c),
             acls(c),
             ImmutableList.copyOf(policies),
-            ImmutableList.copyOf(sets));
+            ImmutableList.copyOf(sets),
+            vnis(c));
     return new Lifted(facts, ImmutableList.copyOf(holes));
   }
 
@@ -217,6 +218,58 @@ public final class Lifter {
       }
     }
     return b.build();
+  }
+
+  private static List<DeviceFacts.VniFacts> vnis(Configuration c) {
+    List<DeviceFacts.VniFacts> rows = new ArrayList<>();
+    c.getVrfs()
+        .values()
+        .forEach(
+            vrf -> {
+              vrf.getLayer2Vnis()
+                  .values()
+                  .forEach(
+                      vni ->
+                          rows.add(
+                              new DeviceFacts.VniFacts(
+                                  vni.getVni(),
+                                  "l2",
+                                  vrf.getName(),
+                                  vni.getSrcVrf(),
+                                  vni.getSourceAddress() == null
+                                      ? null
+                                      : vni.getSourceAddress().toString(),
+                                  vni.getUdpPort(),
+                                  vni.getVlan(),
+                                  vni.getBumTransportMethod().name(),
+                                  vni.getBumTransportIps().stream()
+                                      .map(Object::toString)
+                                      .sorted()
+                                      .toList())));
+              vrf.getLayer3Vnis()
+                  .values()
+                  .forEach(
+                      vni ->
+                          rows.add(
+                              new DeviceFacts.VniFacts(
+                                  vni.getVni(),
+                                  "l3",
+                                  vrf.getName(),
+                                  vni.getSrcVrf(),
+                                  vni.getSourceAddress() == null
+                                      ? null
+                                      : vni.getSourceAddress().toString(),
+                                  vni.getUdpPort(),
+                                  null,
+                                  null,
+                                  List.of())));
+            });
+    return rows.stream()
+        .sorted(
+            Comparator.comparing(DeviceFacts.VniFacts::vrf)
+                .thenComparing(DeviceFacts.VniFacts::layer)
+                .thenComparingInt(DeviceFacts.VniFacts::vni))
+        .toList();
   }
 
   private static List<InterfaceFacts> interfaces(Configuration c) {

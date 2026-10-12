@@ -22,6 +22,12 @@ public final class Questions {
 
   private static final Map<String, Spec> SPECS =
       ImmutableMap.<String, Spec>builder()
+          .put(
+              "vxlanEdges",
+              new Spec(
+                  "org.batfish.question.edges.EdgesQuestion",
+                  ImmutableMap.of("edgeType", "vxlan", "initial", false),
+                  false))
           .put("routes", spec("org.batfish.question.routes.RoutesQuestion"))
           .put(
               "bgpSessionStatus",

@@ -1,5 +1,6 @@
 package org.batfish.engine;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import java.util.List;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -16,7 +17,20 @@ public record DeviceFacts(
     @Nonnull List<VrfFacts> vrfs,
     @Nonnull List<AclFacts> acls,
     @Nonnull List<PolicyFacts> policies,
-    @Nonnull List<SetFacts> sets) {
+    @Nonnull List<SetFacts> sets,
+    @JsonInclude(JsonInclude.Include.ALWAYS) @Nonnull List<VniFacts> vnis) {
+
+  /** Configured VXLAN settings. Source VRF is the underlay, vrf is the tenant domain. */
+  public record VniFacts(
+      int vni,
+      @Nonnull String layer,
+      @Nonnull String vrf,
+      @Nonnull String sourceVrf,
+      @Nullable String sourceAddress,
+      int udpPort,
+      @Nullable Integer vlan,
+      @Nullable String bumTransportMethod,
+      @Nonnull List<String> bumTransportIps) {}
 
   public record InterfaceFacts(
       @Nonnull String name,
