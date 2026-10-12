@@ -97,6 +97,33 @@ public final class SnapshotBuilderTest {
   }
 
   @Test
+  public void kernelInterfaceDownRemovesRoutesWithoutAnExplicitEnvironmentOverride() {
+    SnapshotRequest original = Fixtures.frrOspfBgp();
+    List<Device> devices =
+        original.devices().stream()
+            .map(
+                d ->
+                    new Device(
+                        d.name(),
+                        d.dialect(),
+                        d.configText(),
+                        d.linuxInterfaces().stream()
+                            .map(
+                                i ->
+                                    new SnapshotRequest.LinuxInterface(
+                                        i.name(),
+                                        i.addresses(),
+                                        i.up()
+                                            && !(d.name().equals("r2") && i.name().equals("eth1"))))
+                            .toList()))
+            .toList();
+    DataPlane dp =
+        dataPlane(build(new SnapshotRequest(devices, original.layer1(), Environment.NONE)));
+    assertThat(routes(dp, "r1", "10.2.0.0/24"), empty());
+    assertThat(routes(dp, "r1", "2.2.2.2/32"), empty());
+  }
+
+  @Test
   public void frrDefaultEbgpPolicyRequirementIsAHole() {
     String requiresPolicy =
         Fixtures.text("frr-ospf-bgp/r2.frr").replace(" no bgp ebgp-requires-policy\n", "");

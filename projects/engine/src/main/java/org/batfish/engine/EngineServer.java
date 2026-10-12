@@ -6,6 +6,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.hash.Hashing;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
@@ -36,7 +37,7 @@ public final class EngineServer implements AutoCloseable {
   private static final Logger LOGGER = LogManager.getLogger(EngineServer.class);
 
   /** The engine's own version, reported by {@code /health}. */
-  public static final String ENGINE_VERSION = "1.0.0";
+  public static final String ENGINE_VERSION = "1.1.0";
 
   record DeriveRequest(@Nonnull String id, @Nonnull List<Change> changes) {}
 
@@ -48,6 +49,7 @@ public final class EngineServer implements AutoCloseable {
 
   private static final Pattern SNAPSHOT = Pattern.compile("^/snapshots/([^/]+)$");
   private static final Pattern FACTS = Pattern.compile("^/snapshots/([^/]+)/facts$");
+  private static final Pattern EXPORT = Pattern.compile("^/snapshots/([^/]+)/export$");
   private static final Pattern DERIVE = Pattern.compile("^/snapshots/([^/]+)/derive$");
   private static final Pattern QUESTION = Pattern.compile("^/snapshots/([^/]+)/questions/([^/]+)$");
   private static final Pattern JOB = Pattern.compile("^/jobs/([^/]+)$");
@@ -126,6 +128,16 @@ public final class EngineServer implements AutoCloseable {
           ex.sendResponseHeaders(204, -1);
         }
         default -> notAllowed(ex);
+      }
+    } else if ((m = EXPORT.matcher(path)).matches() && method.equals("GET")) {
+      byte[] bytes = _service.exportSnapshot(m.group(1));
+      ex.getResponseHeaders().set("Content-Type", "application/zip");
+      ex.getResponseHeaders().set("Content-Disposition", "attachment; filename=\"snapshot.zip\"");
+      ex.getResponseHeaders()
+          .set("X-Snapshot-SHA256", Hashing.sha256().hashBytes(bytes).toString());
+      ex.sendResponseHeaders(200, bytes.length);
+      try (OutputStream out = ex.getResponseBody()) {
+        out.write(bytes);
       }
     } else if ((m = FACTS.matcher(path)).matches() && method.equals("GET")) {
       send(ex, 200, _service.facts(m.group(1)));

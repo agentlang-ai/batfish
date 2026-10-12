@@ -9,6 +9,8 @@ import static org.hamcrest.Matchers.not;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.google.common.hash.Hashing;
+import java.io.ByteArrayInputStream;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -17,6 +19,9 @@ import java.net.http.HttpResponse;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 import org.batfish.common.util.BatfishObjectMapper;
 import org.batfish.engine.Deriver.Change;
 import org.junit.After;
@@ -188,6 +193,71 @@ public final class EngineServerTest {
     assertThat(diff.status(), equalTo(200));
     assertThat(diff.body().toString(), containsString("10.1.0.0/24"));
     assertThat(diff.body().toString(), containsString("Only in Reference"));
+  }
+
+  @Test
+  public void completeCandidateAndExportPreserveTheAnalyzedInput() throws Exception {
+    SnapshotRequest original = Fixtures.frrOspfBgp();
+    putAndAwait("baseline", original);
+    String candidate =
+        original.devices().stream()
+            .filter(d -> d.name().equals("r1"))
+            .findFirst()
+            .orElseThrow()
+            .configText()
+            .replaceAll("(?m)^[ \\t]*network 10\\.1\\.0\\.0/24[ \\t]*\\n", "");
+    Response derive =
+        call(
+            "POST",
+            "/snapshots/{id}/derive",
+            "/snapshots/baseline/derive",
+            new EngineServer.DeriveRequest(
+                "candidate", List.of(new Change("r1", null, candidate))));
+    awaitJob(derive.body().get("jobId").asText());
+    Response routes =
+        call(
+            "POST",
+            "/snapshots/{id}/questions/{question}",
+            "/snapshots/candidate/questions/routes",
+            Map.of("nodes", "r2", "network", "10.1.0.0/24"));
+    assertThat(routes.body().path("answer").path("rows").size(), equalTo(0));
+
+    HttpResponse<byte[]> exported =
+        _http.send(
+            HttpRequest.newBuilder(
+                    URI.create(
+                        "http://127.0.0.1:" + _server.port() + "/snapshots/candidate/export"))
+                .GET()
+                .build(),
+            HttpResponse.BodyHandlers.ofByteArray());
+    assertThat(exported.statusCode(), equalTo(200));
+    assertThat(
+        exported.headers().firstValue("Content-Type").orElseThrow(), equalTo("application/zip"));
+    assertThat(
+        exported.headers().firstValue("X-Snapshot-SHA256").orElseThrow(),
+        equalTo(Hashing.sha256().hashBytes(exported.body()).toString()));
+    Map<String, String> files = new TreeMap<>();
+    try (ZipInputStream zip = new ZipInputStream(new ByteArrayInputStream(exported.body()))) {
+      ZipEntry entry;
+      while ((entry = zip.getNextEntry()) != null) {
+        files.put(
+            entry.getName(),
+            new String(zip.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8));
+      }
+    }
+    assertThat(files.get("snapshot/configs/r1.cfg"), not(containsString("network 10.1.0.0/24")));
+    assertThat(files.get("snapshot/configs/r1.cfg"), containsString("router bgp 65001"));
+    assertThat(
+        files.get("snapshot/configs/r2.cfg"),
+        equalTo(
+            InputComposer.compose(
+                    original.devices().stream()
+                        .filter(d -> d.name().equals("r2"))
+                        .findFirst()
+                        .orElseThrow())
+                .text()));
+    assertThat(files.keySet(), hasItem("snapshot/batfish/layer1_topology.json"));
+    assertThat(_service.exportSnapshot("candidate"), equalTo(exported.body()));
   }
 
   @Test

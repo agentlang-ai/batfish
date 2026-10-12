@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: NOCFlow Batfish engine
-  version: 1.0.0
+  version: 1.1.0
   description: >
     One tenant's what-if engine. NOCFlow puts a snapshot of the tenant's network
     (each device's redacted config text, the physical links, and the observed
@@ -58,6 +58,23 @@ paths:
       responses:
         "204": { description: Deleted. }
         "404": { $ref: "#/components/responses/Error" }
+  /snapshots/{id}/export:
+    parameters:
+      - $ref: "#/components/parameters/SnapshotId"
+    get:
+      operationId: exportSnapshot
+      responses:
+        "200":
+          description: Exact analyzed inputs in a standard Batfish snapshot ZIP; retain before deleting the snapshot.
+          headers:
+            X-Snapshot-SHA256:
+              description: SHA-256 of the returned ZIP bytes.
+              schema: { type: string }
+          content:
+            application/zip:
+              schema: { type: string, format: binary }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
   /snapshots/{id}/facts:
     parameters:
       - $ref: "#/components/parameters/SnapshotId"
@@ -254,10 +271,18 @@ components:
           items: { $ref: "#/components/schemas/Change" }
     Change:
       type: object
-      required: [device, lines]
+      required: [device]
+      description: Provide exactly one of configText (complete candidate configuration) or lines (legacy commands for validated operations).
+      oneOf:
+        - required: [configText]
+        - required: [lines]
       additionalProperties: false
       properties:
         device: { type: string }
+        configText:
+          type: string
+          minLength: 1
+          description: Complete native candidate configuration replacing this device's baseline text. Other devices and the environment are preserved.
         lines:
           type: array
           minItems: 1

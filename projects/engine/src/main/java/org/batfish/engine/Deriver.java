@@ -1,5 +1,6 @@
 package org.batfish.engine;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.google.common.collect.ImmutableList;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -12,23 +13,37 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import org.batfish.engine.SnapshotRequest.Device;
 
 /**
- * Derives a proposed snapshot from a base one by applying config lines, the same lines a change
- * request would push to the device.
+ * Derives a proposed snapshot by replacing changed devices with complete native candidate configs.
  *
- * <p>Lines are added the way a device's config session would take them: after the existing config,
- * before a trailing {@code end}. The changed devices are reparsed into a new snapshot; the rest are
- * unchanged. Anything Batfish could not model in the proposed config that it could model in the
- * base becomes a reason the change's verdict must be {@code unknown}.
+ * <p>Legacy command deltas append before a trailing {@code end}; this is supported only for
+ * explicitly validated operations, not as a general device CLI interpreter. All inputs are parsed
+ * into a new snapshot. Anything newly unmodeled on a changed device makes its verdict unknown.
  */
 public final class Deriver {
 
-  /** Config lines for one device, in the device's own CLI syntax. */
-  public record Change(@Nonnull String device, @Nonnull List<String> lines) {
+  /** A complete candidate config, or legacy CLI lines for a validated operation. */
+  @JsonInclude(JsonInclude.Include.NON_NULL)
+  public record Change(
+      @Nonnull String device, @Nullable List<String> lines, @Nullable String configText) {
     public Change {
-      lines = ImmutableList.copyOf(lines);
+      if ((lines == null) == (configText == null)) {
+        throw new IllegalArgumentException("provide exactly one of lines or configText");
+      }
+      if (lines != null) {
+        lines = ImmutableList.copyOf(lines);
+        if (lines.isEmpty()) throw new IllegalArgumentException("lines must not be empty");
+      }
+      if (configText != null && configText.isBlank()) {
+        throw new IllegalArgumentException("configText must not be empty");
+      }
+    }
+
+    public Change(String device, List<String> lines) {
+      this(device, lines, null);
     }
   }
 
@@ -49,15 +64,27 @@ public final class Deriver {
       @Nonnull SnapshotBuilder.Built base, @Nonnull List<Change> changes) {
     Map<String, List<String>> linesByDevice =
         changes.stream()
+            .filter(c -> c.lines() != null)
             .collect(
                 Collectors.groupingBy(
                     c -> c.device().toLowerCase(Locale.ROOT),
                     Collectors.flatMapping(c -> c.lines().stream(), Collectors.toList())));
+    Map<String, String> replacements = new java.util.HashMap<>();
+    for (Change change : changes) {
+      if (change.configText() == null) continue;
+      String node = change.device().toLowerCase(Locale.ROOT);
+      if (linesByDevice.containsKey(node)
+          || replacements.putIfAbsent(node, change.configText()) != null) {
+        throw new IllegalArgumentException("ambiguous candidate for " + node);
+      }
+    }
+    Set<String> changed = new HashSet<>(linesByDevice.keySet());
+    changed.addAll(replacements.keySet());
     Set<String> known =
         base.request().devices().stream()
             .map(d -> d.name().toLowerCase(Locale.ROOT))
             .collect(Collectors.toSet());
-    for (String device : linesByDevice.keySet()) {
+    for (String device : changed) {
       if (!known.contains(device)) {
         throw new IllegalArgumentException("change for unknown device " + device);
       }
@@ -65,18 +92,23 @@ public final class Deriver {
 
     List<Device> devices = new ArrayList<>();
     for (Device d : base.request().devices()) {
-      List<String> lines = linesByDevice.get(d.name().toLowerCase(Locale.ROOT));
+      String node = d.name().toLowerCase(Locale.ROOT);
+      List<String> lines = linesByDevice.get(node);
+      String replacement = replacements.get(node);
       devices.add(
-          lines == null
+          lines == null && replacement == null
               ? d
               : new Device(
-                  d.name(), d.dialect(), apply(d.configText(), lines), d.linuxInterfaces()));
+                  d.name(),
+                  d.dialect(),
+                  replacement != null ? replacement : apply(d.configText(), lines),
+                  d.linuxInterfaces()));
     }
     SnapshotRequest proposed =
         new SnapshotRequest(devices, base.request().layer1(), base.request().environment());
     SnapshotBuilder.Built built = _builder.build(proposed);
     List<CoverageHole> introduced =
-        new ArrayList<>(introduced(base.holes(), built.holes(), linesByDevice.keySet()));
+        new ArrayList<>(introduced(base.holes(), built.holes(), changed));
     linesByDevice.forEach(
         (device, lines) -> introduced.addAll(redeclaredClauses(device, base, lines)));
     return new Derived(built, ImmutableList.copyOf(introduced));

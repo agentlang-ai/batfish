@@ -9,8 +9,10 @@ HTTP API. The contract is [`openapi.yaml`](openapi.yaml).
   holes per device and fact family.
 - `Lifter` produces each device's neutral facts, including a readable routing
   policy view taken from the parser's defined structures.
-- `Deriver` applies a change request's config lines to derive a proposed snapshot.
-  Holes the change introduces make its verdict unknown.
+- `Deriver` accepts complete candidate config text, or legacy config lines for
+  explicitly validated operations. Complete configs replace only the changed
+  device's text; other inputs remain pinned. Holes the change introduces make
+  its verdict unknown. Appending CLI is not a general device configuration editor.
 - `ModelInjector` injects self-built models (no config text) through storage, so
   load-time post-processing still runs.
 
@@ -33,3 +35,18 @@ ENGINE_PORT=9800 java -jar bazel-bin/projects/engine/engine_main_deploy.jar
 
 Known FRR gaps, reported rather than hidden: the default `bgp ebgp-requires-policy`,
 `neighbor ... shutdown`, and `no route-map ...` are not modeled by Batfish's FRR grammar.
+
+## Portable analysis inputs
+
+`GET /snapshots/{id}/export` returns a standard Batfish ZIP with `snapshot/configs/`
+and `snapshot/batfish/` inputs. It reads the exact files analyzed, including FRR
+composition and runtime state; it does not regenerate them from current evidence.
+`X-Snapshot-SHA256` identifies the returned bytes. Export baseline and candidate
+before snapshot deletion and retain them with question parameters and the exact
+engine build. This endpoint does not persist the in-memory snapshot/job registry.
+
+API 1.1.0 accepts `{device, configText}` as an alternative to `{device, lines}` in
+derive requests. Supply exactly one form. Replacement text is a full native
+configuration, not a command delta; deployment commands belong to the caller's
+reviewed proposal. Linux interfaces with `up: false` are modeled line-down even
+when not separately listed in `environment.interfacesDown`.

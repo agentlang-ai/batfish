@@ -6,6 +6,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.google.common.collect.ImmutableList;
 import com.google.common.hash.Hashing;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
@@ -21,6 +22,8 @@ import java.util.concurrent.Executors;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import org.batfish.common.Answerer;
@@ -200,6 +203,27 @@ public final class EngineService implements AutoCloseable {
   public @Nonnull Facts facts(@Nonnull String id) {
     SnapshotBuilder.Built built = done(id).built;
     return new Facts(built.facts(), built.holes());
+  }
+
+  /** Exact analyzed inputs in the standard Batfish snapshot ZIP layout. */
+  public synchronized byte[] exportSnapshot(@Nonnull String id) {
+    Path input = _builder.snapshotDir(done(id).built.id()).resolve("input");
+    try (ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        ZipOutputStream zip = new ZipOutputStream(bytes);
+        Stream<Path> paths = Files.walk(input)) {
+      for (Path path : paths.filter(Files::isRegularFile).sorted().toList()) {
+        ZipEntry entry =
+            new ZipEntry("snapshot/" + input.relativize(path).toString().replace('\\', '/'));
+        entry.setTime(0);
+        zip.putNextEntry(entry);
+        Files.copy(path, zip);
+        zip.closeEntry();
+      }
+      zip.finish();
+      return bytes.toByteArray();
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
   }
 
   public @Nonnull Answer ask(

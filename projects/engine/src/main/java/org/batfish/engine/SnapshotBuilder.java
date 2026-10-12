@@ -9,9 +9,11 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.SortedMap;
 import javax.annotation.Nonnull;
 import org.batfish.common.NetworkSnapshot;
@@ -130,15 +132,26 @@ public final class SnapshotBuilder {
         BatfishObjectMapper.mapper()
             .writeValue(batfishDir.resolve("layer1_topology.json").toFile(), l1);
       }
-      if (!request.environment().interfacesDown().isEmpty()) {
+      Set<NodeInterfacePair> interfacesDown = new HashSet<>();
+      request
+          .environment()
+          .interfacesDown()
+          .forEach(
+              i ->
+                  interfacesDown.add(
+                      NodeInterfacePair.of(i.node().toLowerCase(Locale.ROOT), i.iface())));
+      for (Device device : request.devices()) {
+        if (device.dialect() != Dialect.FRR_LINUX || device.linuxInterfaces() == null) continue;
+        device.linuxInterfaces().stream()
+            .filter(i -> !i.up())
+            .forEach(
+                i ->
+                    interfacesDown.add(
+                        NodeInterfacePair.of(device.name().toLowerCase(Locale.ROOT), i.name())));
+      }
+      if (!interfacesDown.isEmpty()) {
         SnapshotRuntimeData runtime =
-            SnapshotRuntimeData.builder()
-                .setInterfacesLineDown(
-                    request.environment().interfacesDown().stream()
-                        .map(
-                            i -> NodeInterfacePair.of(i.node().toLowerCase(Locale.ROOT), i.iface()))
-                        .toList())
-                .build();
+            SnapshotRuntimeData.builder().setInterfacesLineDown(interfacesDown).build();
         BatfishObjectMapper.mapper()
             .writeValue(batfishDir.resolve("runtime_data.json").toFile(), runtime);
       }
