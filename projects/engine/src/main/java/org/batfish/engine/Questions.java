@@ -28,6 +28,12 @@ public final class Questions {
                   "org.batfish.question.edges.EdgesQuestion",
                   ImmutableMap.of("edgeType", "vxlan", "initial", false),
                   false))
+          .put(
+              "evpnRib",
+              new Spec(
+                  "org.batfish.question.routes.RoutesQuestion",
+                  ImmutableMap.of("rib", "evpn"),
+                  false))
           .put("routes", spec("org.batfish.question.routes.RoutesQuestion"))
           .put(
               "bgpSessionStatus",

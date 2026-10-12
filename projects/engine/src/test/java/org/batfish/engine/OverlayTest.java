@@ -91,6 +91,73 @@ public final class OverlayTest {
     }
   }
 
+  static String evpnConfig(int host, boolean matchingRt, boolean reachable) {
+    int peer = 3 - host;
+    String bgp =
+        """
+        interface Loopback110
+          vrf TENANT
+          ip address 10.111.%d.1/32
+        router bgp 65110
+          router-id 203.0.113.%d
+          no bgp default ipv4-unicast
+          neighbor 192.0.2.%d remote-as 65110
+          neighbor 192.0.2.%d send-community extended
+          address-family evpn
+            neighbor 192.0.2.%d activate
+          vrf TENANT
+            rd 203.0.113.%d:50110
+            route-target import evpn %d:50110
+            route-target export evpn %d:50110
+            redistribute connected
+        """
+            .formatted(
+                host,
+                host,
+                peer,
+                peer,
+                peer,
+                host,
+                matchingRt || host == 1 ? 65110 : 65111,
+                matchingRt || host == 1 ? 65110 : 65111);
+    String base = config(host, true).replace("end\n", bgp + "end\n");
+    return reachable
+        ? base
+        : base.replace("ip route 203.0.113." + peer + "/32 192.0.2." + peer, "");
+  }
+
+  static SnapshotRequest evpnRequest(boolean matchingRt, boolean reachable) {
+    return new SnapshotRequest(
+        List.of(
+            new Device("leaf1", Dialect.ARISTA_EOS, evpnConfig(1, matchingRt, reachable)),
+            new Device("leaf2", Dialect.ARISTA_EOS, evpnConfig(2, matchingRt, reachable))),
+        List.of(new Link("leaf1", "Ethernet1", "leaf2", "Ethernet1")),
+        Environment.NONE);
+  }
+
+  @Test
+  public void l3TunnelsRequireImportedEvpnRoutesAndReachableUnderlay() throws Exception {
+    try (EngineService service =
+        new EngineService(new EngineBatfish(folder.newFolder().toPath(), 4))) {
+      for (String id : List.of("evpn", "rt-mismatch", "unreachable")) {
+        var job =
+            service.put(id, evpnRequest(!id.equals("rt-mismatch"), !id.equals("unreachable")));
+        awaitJob(service, job.jobId());
+        var mapper = org.batfish.common.util.BatfishObjectMapper.mapper();
+        var rows = mapper.valueToTree(service.ask(id, "vxlanEdges", null).answer()).path("rows");
+        long l3 =
+            java.util.stream.StreamSupport.stream(rows.spliterator(), false)
+                .filter(row -> row.path("VNI_Layer").asText().equals("l3"))
+                .count();
+        assertThat(id, l3, equalTo(id.equals("evpn") ? 2L : 0L));
+        if (id.equals("evpn")) {
+          var routes = mapper.valueToTree(service.ask(id, "evpnRib", null).answer()).path("rows");
+          assertThat(routes.isEmpty(), equalTo(false));
+        }
+      }
+    }
+  }
+
   private static void awaitJob(EngineService service, String id) throws Exception {
     for (int attempt = 0; attempt < 600; attempt++) {
       String status = service.job(id).status().name();
