@@ -34,6 +34,9 @@ public final class Questions {
                   "org.batfish.question.routes.RoutesQuestion",
                   ImmutableMap.of("rib", "evpn"),
                   false))
+          .put(
+              "evpnL3VniProperties",
+              spec("org.batfish.question.evpnl3vniproperties.EvpnL3VniPropertiesQuestion"))
           .put("routes", spec("org.batfish.question.routes.RoutesQuestion"))
           .put(
               "bgpSessionStatus",

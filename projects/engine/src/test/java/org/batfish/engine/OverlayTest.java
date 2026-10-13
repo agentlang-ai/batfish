@@ -150,6 +150,20 @@ public final class OverlayTest {
                 .filter(row -> row.path("VNI_Layer").asText().equals("l3"))
                 .count();
         assertThat(id, l3, equalTo(id.equals("evpn") ? 2L : 0L));
+        var properties =
+            mapper.valueToTree(service.ask(id, "evpnL3VniProperties", null).answer()).path("rows");
+        assertThat(properties.size(), equalTo(2));
+        for (var row : properties) {
+          assertThat(row.path("VNI").asInt(), equalTo(50110));
+          assertThat(row.path("VRF").asText(), equalTo("TENANT"));
+          assertThat(row.path("Import_Route_Targets").isEmpty(), equalTo(false));
+          assertThat(
+              row.path("Export_Route_Targets").get(0).asText(),
+              equalTo(
+                  id.equals("rt-mismatch") && row.path("Node").asText().equals("leaf2")
+                      ? "65111:50110"
+                      : "65110:50110"));
+        }
         if (id.equals("evpn")) {
           var routes = mapper.valueToTree(service.ask(id, "evpnRib", null).answer()).path("rows");
           assertThat(routes.isEmpty(), equalTo(false));

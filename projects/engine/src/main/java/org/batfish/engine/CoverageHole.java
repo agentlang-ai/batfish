@@ -45,6 +45,11 @@ public record CoverageHole(
               + "|ip\\s+(domain|name-server|ssh|http)|domain-name|name-server|motd|system\\s"
               + "|hostname|terminal|alias|daemon|agent|event-handler|transceiver)\\b");
 
+  // EOS CLI validation policy, not interface speed/FEC or forwarding state.
+  // Keep the warning visible; only these exact guard commands are non-forwarding.
+  private static final Pattern L1_CLI_GUARD =
+      Pattern.compile("^unsupported (speed|error-correction) action (error|warn)$");
+
   private static final Pattern BGP_TEXT = Pattern.compile("\\b(bgp|neighbor|peer-as|evpn)\\b");
   private static final Pattern OSPF_TEXT = Pattern.compile("\\bospf");
   private static final Pattern POLICY_TEXT =
@@ -64,7 +69,7 @@ public record CoverageHole(
    */
   public static @Nonnull String classify(@Nonnull String text) {
     String t = text.toLowerCase(Locale.ROOT);
-    if (MANAGEMENT_TEXT.matcher(t).find()) {
+    if (MANAGEMENT_TEXT.matcher(t).find() || L1_CLI_GUARD.matcher(t.strip()).matches()) {
       return MANAGEMENT;
     }
     if (POLICY_TEXT.matcher(t).find()) {

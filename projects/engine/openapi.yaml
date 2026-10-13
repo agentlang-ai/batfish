@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: NOCFlow Batfish engine
-  version: 1.3.0
+  version: 1.4.1
   description: >
     One tenant's what-if engine. NOCFlow puts a snapshot of the tenant's network
     (each device's redacted config text, the physical links, and the observed
@@ -350,7 +350,7 @@ components:
             udpPort, vlan (L2 only), bumTransportMethod and bumTransportIps.
             vxlanEdges reports computed L2 and L3 tunnel edges with VNI_Layer (l2/l3).
             L3 edges require learned EVPN next-hop VTEPs and bidirectional modeled
-            underlay reachability. evpnRib exposes computed EVPN routes. Neither
+            underlay reachability. evpnRib exposes computed EVPN routes. evpnL3VniProperties exposes tenant route targets (imports are Batfish regular expressions). Neither
             answer represents live observations.
           additionalProperties: { type: object }
         holes:
@@ -360,7 +360,7 @@ components:
       type: string
       enum:
         [routes, bgpSessionStatus, bgpSessionCompatibility, ospfSessionCompatibility, traceroute,
-         reachability, differentialReachability, layer3Edges, vxlanEdges, evpnRib]
+         reachability, differentialReachability, layer3Edges, vxlanEdges, evpnRib, evpnL3VniProperties]
     QuestionParameters:
       type: object
       description: >

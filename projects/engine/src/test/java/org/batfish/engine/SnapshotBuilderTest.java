@@ -151,6 +151,35 @@ public final class SnapshotBuilderTest {
   }
 
   @Test
+  public void eosCliGuardsRemainVisibleWithoutBlockingForwardingChecks() {
+    for (String text :
+        List.of("unsupported speed action error", "unsupported error-correction action warn")) {
+      assertThat(CoverageHole.classify(text), equalTo(CoverageHole.MANAGEMENT));
+    }
+    assertThat(
+        CoverageHole.classify("unsupported speed action something-new"),
+        equalTo(CoverageHole.UNCLASSIFIED));
+    assertThat(CoverageHole.classify("speed forced 10000full"), equalTo(CoverageHole.UNCLASSIFIED));
+    var request =
+        new SnapshotRequest(
+            List.of(
+                new Device(
+                    "leaf",
+                    Dialect.ARISTA_EOS,
+                    "hostname leaf\n"
+                        + "system l1\n"
+                        + "   unsupported speed action error\n"
+                        + "   unsupported error-correction action error\n"
+                        + "end\n")),
+            List.of(),
+            Environment.NONE);
+    var guards =
+        build(request).holes().stream().filter(h -> h.text().startsWith("unsupported ")).toList();
+    assertThat(guards.size(), equalTo(2));
+    guards.forEach(h -> assertThat(h.family(), equalTo(CoverageHole.MANAGEMENT)));
+  }
+
+  @Test
   public void managementLinesAreNotForwardingHoles() {
     List<CoverageHole> holes = build(Fixtures.dc1Eos()).holes();
 
