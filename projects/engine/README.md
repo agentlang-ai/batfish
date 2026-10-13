@@ -99,3 +99,10 @@ marks any partially deleted model failed, so it cannot answer assurance question
 API 1.6.0 introduces bounded retention, exclusive cache ownership, retryable
 cleanup, and conservative forwarding-policy coverage. Refresh older models
 after deploying this version so previous coverage classifications are retired.
+
+API 1.6.2 keeps PIM/IGMP warnings as explicit `multicast` coverage holes, including
+validated IPv4 multicast RP ranges. These features remain unmodeled. Packet-assurance
+clients may distinguish plain IPv4 unicast from multicast-dependent forwarding;
+unknown families and tunnel transport dependencies must remain conservative.
+The exact EOS `system l1` mode header and `radius-server` management commands are
+classified as management, while unknown forwarding commands remain unclassified.
