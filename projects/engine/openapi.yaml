@@ -1,13 +1,16 @@
 openapi: 3.0.3
 info:
   title: NOCFlow Batfish engine
-  version: 1.5.1
+  version: 1.6.0
   description: >
     One tenant's what-if engine. NOCFlow puts a snapshot of the tenant's network
     (each device's redacted config text, the physical links, and the observed
     environment), derives proposed snapshots from config lines, and asks
     questions of either, or of the difference between them.
 
+    Completed snapshots and their jobs have bounded LRU retention. Evicted IDs
+    return 404 and can be rebuilt from the caller's retained inputs. Creation
+    returns 429 if capacity is occupied by running work or a protected base.
     Snapshots are immutable. A snapshot id is the caller's (NOCFlow's revision
     id); putting the same id with the same content again is a no-op, and with
     different content is a conflict. Building and computing run as jobs, one at a
@@ -44,6 +47,7 @@ paths:
               schema: { $ref: "#/components/schemas/JobRef" }
         "400": { $ref: "#/components/responses/Error" }
         "409": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/Error" }
     get:
       operationId: getSnapshot
       responses:
@@ -107,6 +111,7 @@ paths:
         "400": { $ref: "#/components/responses/Error" }
         "404": { $ref: "#/components/responses/Error" }
         "409": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/Error" }
   /snapshots/{id}/questions/{question}:
     parameters:
       - $ref: "#/components/parameters/SnapshotId"

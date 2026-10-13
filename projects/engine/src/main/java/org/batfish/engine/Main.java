@@ -14,6 +14,8 @@ import java.nio.file.Paths;
  *   <li>{@code ENGINE_STORAGE}: directory for snapshots (default a temporary directory). Contents
  *       are a cache: the engine can always be rebuilt from NOCFlow's revisions.
  *   <li>{@code ENGINE_MAX_DATAPLANES}: data planes kept in memory (default 4).
+ *   <li>{@code ENGINE_MAX_SNAPSHOTS}: retained snapshots/jobs (default 16); least recently used
+ *       completed snapshots are reclaimed to admit new work.
  * </ul>
  */
 public final class Main {
@@ -28,14 +30,40 @@ public final class Main {
         storage == null || storage.isEmpty()
             ? Files.createTempDirectory("engine")
             : Files.createDirectories(Paths.get(storage));
-    EngineService service = new EngineService(new EngineBatfish(base, maxDataPlanes));
-    EngineServer server = new EngineServer(service, new InetSocketAddress(port));
+    int maxSnapshots = Integer.parseInt(env("ENGINE_MAX_SNAPSHOTS", "16"));
+    if (maxSnapshots < 1 || maxDataPlanes < 1) {
+      throw new IllegalArgumentException("engine cache limits must be positive");
+    }
+    EngineStorage ownership = EngineStorage.open(base);
+    EngineService service;
+    try {
+      service = new EngineService(new EngineBatfish(base, maxDataPlanes), maxSnapshots);
+    } catch (RuntimeException failure) {
+      ownership.close();
+      throw failure;
+    }
+    EngineServer server;
+    try {
+      server = new EngineServer(service, new InetSocketAddress(port));
+    } catch (IOException | RuntimeException failure) {
+      try {
+        service.close();
+      } finally {
+        ownership.close();
+      }
+      throw failure;
+    }
     Runtime.getRuntime()
         .addShutdownHook(
             new Thread(
                 () -> {
-                  server.close();
-                  service.close();
+                  try {
+                    server.close();
+                    service.close();
+                    ownership.close();
+                  } catch (IOException e) {
+                    throw new java.io.UncheckedIOException(e);
+                  }
                 }));
     server.start();
     System.out.printf("engine listening on %d, storage %s%n", server.port(), base);

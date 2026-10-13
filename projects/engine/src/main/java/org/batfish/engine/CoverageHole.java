@@ -38,12 +38,15 @@ public record CoverageHole(
 
   public static final String UNCLASSIFIED = "unclassified";
 
+  // Only known management commands qualify. A word boundary also matches a hyphen,
+  // so a bare "service" alternative would incorrectly exempt service-policy.
   private static final Pattern MANAGEMENT_TEXT =
       Pattern.compile(
           "^\\s*(no\\s+)?(lldp|cdp|username|user|enable\\s+(secret|password)|snmp-server|snmp"
-              + "|ntp|logging|log|aaa|tacacs|radius|banner|clock|management|service|line\\s"
-              + "|ip\\s+(domain|name-server|ssh|http)|domain-name|name-server|motd|system\\s"
-              + "|hostname|terminal|alias|daemon|agent|event-handler|transceiver)\\b");
+              + "|ntp|logging|log|aaa|tacacs|radius|banner|clock|management"
+              + "|service\\s+(password-encryption|timestamps|sequence-numbers|compress-config)"
+              + "|line|ip\\s+(domain|name-server|ssh|http)|domain-name|name-server|motd"
+              + "|hostname|terminal|alias)(?=\\s|$)");
 
   // EOS CLI validation policy, not interface speed/FEC or forwarding state.
   // Keep the warning visible; only these exact guard commands are non-forwarding.
@@ -55,7 +58,7 @@ public record CoverageHole(
   private static final Pattern POLICY_TEXT =
       Pattern.compile(
           "route-map|prefix-list|community|as-path|policy-statement|policy-options"
-              + "|route-filter");
+              + "|route-filter|service-policy|policy-map");
   private static final Pattern ACL_TEXT =
       Pattern.compile("access-list|access-group|firewall|\\bfilter\\b|\\bacl\\b");
   private static final Pattern NAT_TEXT = Pattern.compile("\\bnat\\b");

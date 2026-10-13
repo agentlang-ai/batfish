@@ -75,3 +75,27 @@ not a listening application or a completed TCP handshake.
 Internal snapshot identities are unique across engine restarts. API 1.5.1 fixes
 reuse of persisted models when restarting with the same `ENGINE_STORAGE`;
 refresh snapshots created by earlier versions before relying on their results.
+
+## Retention and storage ownership
+
+The standalone engine exclusively owns its dedicated ENGINE_STORAGE directory
+and holds an OS file lock until shutdown. Stop older engine versions before
+upgrading: versions predating this lock do not participate in ownership checks.
+The snapshot/job registry is process-local. On startup, after acquiring the
+lock, the engine reclaims the previous process's networks/tenant/snapshots cache.
+Other networks and unrelated files are preserved; symlinked cache directories
+are refused. Nocflow must rehydrate snapshots from its retained revisions.
+
+ENGINE_MAX_SNAPSHOTS bounds retained snapshots and jobs (default 16).
+Completed/failed snapshots are evicted in least-recently-used order, reclaiming
+their compiled models, inputs, dataplanes and job records. Use at least two slots
+for baseline/candidate comparisons. Evicted IDs return 404 and can be rebuilt
+from retained inputs. Creation/derivation returns 429 when all slots are running
+or the only possible victim is the requested base. Queries and reclamation are
+serialized to prevent deleting a snapshot while it is being answered.
+A cleanup failure retains the internal identity for retry through DELETE and
+marks any partially deleted model failed, so it cannot answer assurance questions.
+
+API 1.6.0 introduces bounded retention, exclusive cache ownership, retryable
+cleanup, and conservative forwarding-policy coverage. Refresh older models
+after deploying this version so previous coverage classifications are retired.

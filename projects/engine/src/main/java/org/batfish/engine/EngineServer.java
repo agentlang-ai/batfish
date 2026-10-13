@@ -38,7 +38,7 @@ public final class EngineServer implements AutoCloseable {
   private static final Logger LOGGER = LogManager.getLogger(EngineServer.class);
 
   /** The engine's own version, reported by {@code /health}. */
-  public static final String ENGINE_VERSION = "1.5.1";
+  public static final String ENGINE_VERSION = "1.6.0";
 
   record DeriveRequest(@Nonnull String id, @Nonnull List<Change> changes) {}
 
@@ -103,6 +103,14 @@ public final class EngineServer implements AutoCloseable {
       _server.stop(0);
     } finally {
       _executor.shutdownNow();
+      try {
+        if (!_executor.awaitTermination(30, java.util.concurrent.TimeUnit.SECONDS)) {
+          throw new IllegalStateException("request workers did not stop");
+        }
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        throw new IllegalStateException("interrupted while stopping request workers", e);
+      }
     }
   }
 

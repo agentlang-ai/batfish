@@ -15,6 +15,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import org.batfish.engine.SnapshotRequest.Device;
+import org.batfish.identifiers.SnapshotId;
 
 /**
  * Derives a proposed snapshot by replacing changed devices with complete native candidate configs.
@@ -62,6 +63,10 @@ public final class Deriver {
 
   public @Nonnull Derived derive(
       @Nonnull SnapshotBuilder.Built base, @Nonnull List<Change> changes) {
+    return derive(base, changes, EngineBatfish.freshSnapshotId("snap"));
+  }
+
+  Derived derive(SnapshotBuilder.Built base, List<Change> changes, SnapshotId id) {
     Map<String, List<String>> linesByDevice =
         changes.stream()
             .filter(c -> c.lines() != null)
@@ -106,7 +111,7 @@ public final class Deriver {
     }
     SnapshotRequest proposed =
         new SnapshotRequest(devices, base.request().layer1(), base.request().environment());
-    SnapshotBuilder.Built built = _builder.build(proposed);
+    SnapshotBuilder.Built built = _builder.build(id, proposed);
     List<CoverageHole> introduced =
         new ArrayList<>(introduced(base.holes(), built.holes(), changed));
     linesByDevice.forEach(
