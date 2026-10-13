@@ -50,3 +50,28 @@ derive requests. Supply exactly one form. Replacement text is a full native
 configuration, not a command delta; deployment commands belong to the caller's
 reviewed proposal. Linux interfaces with `up: false` are modeled line-down even
 when not separately listed in `environment.interfacesDown`.
+
+## Packet paths and ACL evidence
+
+API 1.5.0 exposes Batfish's `testFilters` question alongside `traceroute`.
+Traceroute `Filter` steps identify the device, filter, direction, input interface
+and packet at that step, with `PERMITTED` or `DENIED` actions. They do not contain
+a matching ACL line. Query `testFilters` with exact quoted `nodes` and `filters`,
+an explicit `startLocation`, and complete packet headers to obtain `Line_Content`
+and the structured ACL `Trace`. `Line_Content` is a vendor line name when
+available, otherwise `line:<zero-based index>`; `no-match` means implicit deny.
+
+An interface location (`"node"["interface"]`) originates traffic in that
+interface's VRF. An interface-link location (`@enter("node"["interface"])`)
+injects traffic into the interface and applies ingress filters. Use the filter
+step's packet and input interface, including any prior NAT transformation, when
+explaining a path. Pin source/destination addresses and ports, protocol, DSCP,
+ECN, packet length, fragment offset and protocol flags/type/code as applicable.
+Batfish selects one representative packet for unspecified fields or ranges;
+compare returned packet fields and ingress context before joining its matched
+line to a traceroute step. These answers model packet forwarding and ACL policy,
+not a listening application or a completed TCP handshake.
+
+Internal snapshot identities are unique across engine restarts. API 1.5.1 fixes
+reuse of persisted models when restarting with the same `ENGINE_STORAGE`;
+refresh snapshots created by earlier versions before relying on their results.

@@ -116,6 +116,119 @@ public final class EngineServerTest {
   }
 
   @Test
+  public void exactPacketAclEvidenceMatchesIngressPathAndDistinguishesImplicitDeny()
+      throws Exception {
+    putAndAwait(
+        "packet-acl",
+        new SnapshotRequest(
+            List.of(
+                new SnapshotRequest.Device(
+                    "edge",
+                    Dialect.ARISTA_EOS,
+                    """
+                    !RANCID-CONTENT-TYPE: arista
+                    hostname edge
+                    ip routing
+                    ip access-list WEB
+                       10 permit tcp any host 192.0.2.1 eq 443
+                       20 deny tcp any host 192.0.2.1 eq 22
+                    interface Ethernet1
+                       no switchport
+                       ip address 192.0.2.1/24
+                       ip access-group WEB in
+                    end
+                    """)),
+            List.of(),
+            SnapshotRequest.Environment.NONE));
+    for (int port : List.of(443, 22, 80)) {
+      var mapper = BatfishObjectMapper.mapper();
+      ObjectNode headers =
+          (ObjectNode)
+              mapper.readTree(
+                  """
+                  {
+                    "srcIps":"192.0.2.10", "dstIps":"192.0.2.1",
+                    "srcPorts":"49152", "dstPorts":"%d", "ipProtocols":["TCP"],
+                    "dscps":"8", "ecns":"0", "packetLengths":"64", "fragmentOffsets":"0",
+                    "tcpFlags":[{
+                      "useAck":true, "useCwr":true, "useEce":true, "useFin":true,
+                      "usePsh":true, "useRst":true, "useSyn":true, "useUrg":true,
+                      "tcpFlags":{"syn":true}
+                    }]
+                  }
+                  """
+                      .formatted(port));
+      String location = "@enter(\"edge\"[\"Ethernet1\"])";
+      Response filters =
+          call(
+              "POST",
+              "/snapshots/{id}/questions/{question}",
+              "/snapshots/packet-acl/questions/testFilters",
+              Map.of(
+                  "nodes",
+                  "\"edge\"",
+                  "filters",
+                  "\"WEB\"",
+                  "startLocation",
+                  location,
+                  "headers",
+                  headers));
+      assertThat(filters.body().toString(), filters.status(), equalTo(200));
+      JsonNode rows = filters.body().path("answer").path("rows");
+      assertThat(rows.size(), equalTo(1));
+      JsonNode row = rows.get(0);
+      assertThat(row.toString(), row.path("Node").path("name").asText(), equalTo("edge"));
+      assertThat(row.path("Filter_Name").asText(), equalTo("WEB"));
+      assertThat(row.path("Action").asText(), equalTo(port == 443 ? "PERMIT" : "DENY"));
+      if (port == 80) {
+        assertThat(row.path("Line_Content").asText(), equalTo("no-match"));
+      } else {
+        assertThat(
+            row.path("Line_Content").asText(),
+            containsString(port == 443 ? "permit tcp" : "deny tcp"));
+        assertThat(row.path("Trace").isArray(), equalTo(true));
+        assertThat(row.path("Trace").isEmpty(), equalTo(false));
+      }
+      JsonNode flow = row.path("Flow");
+      assertThat(flow.path("ingressNode").asText(), equalTo("edge"));
+      assertThat(flow.path("ingressInterface").asText(), equalTo("Ethernet1"));
+      assertThat(flow.path("srcIp").asText(), equalTo("192.0.2.10"));
+      assertThat(flow.path("dstIp").asText(), equalTo("192.0.2.1"));
+      assertThat(flow.path("srcPort").asInt(), equalTo(49152));
+      assertThat(flow.path("dstPort").asInt(), equalTo(port));
+      assertThat(flow.path("ipProtocol").asText(), equalTo("TCP"));
+      assertThat(flow.path("dscp").asInt(), equalTo(8));
+      assertThat(flow.path("ecn").asInt(), equalTo(0));
+      assertThat(flow.path("packetLength").asInt(), equalTo(64));
+      assertThat(flow.path("fragmentOffset").asInt(), equalTo(0));
+      assertThat(flow.path("tcpFlagsSyn").asInt(), equalTo(1));
+      assertThat(flow.path("tcpFlagsAck").asInt(), equalTo(0));
+      Response path =
+          call(
+              "POST",
+              "/snapshots/{id}/questions/{question}",
+              "/snapshots/packet-acl/questions/traceroute",
+              Map.of("startLocation", location, "headers", headers, "ignoreFilters", false));
+      assertThat(path.body().toString(), path.status(), equalTo(200));
+      JsonNode trace = path.body().path("answer").path("rows").get(0).path("Traces").get(0);
+      assertThat(
+          trace.path("disposition").asText(), equalTo(port == 443 ? "ACCEPTED" : "DENIED_IN"));
+      List<JsonNode> steps = new ArrayList<>();
+      trace.path("hops").forEach(h -> h.path("steps").forEach(steps::add));
+      JsonNode filter =
+          steps.stream()
+              .filter(s -> s.path("type").asText().equals("Filter"))
+              .findFirst()
+              .orElseThrow();
+      assertThat(filter.path("action").asText(), equalTo(port == 443 ? "PERMITTED" : "DENIED"));
+      assertThat(filter.path("detail").path("filter").asText(), equalTo("WEB"));
+      assertThat(filter.path("detail").path("type").asText(), equalTo("INGRESS_FILTER"));
+      assertThat(filter.path("detail").path("inputInterface").asText(), equalTo("Ethernet1"));
+      assertThat(filter.path("detail").path("flow"), equalTo(flow));
+    }
+  }
+
+  @Test
   public void buildFactsAndQuestions() throws Exception {
     putAndAwait("rev-1", Fixtures.frrOspfBgp());
 

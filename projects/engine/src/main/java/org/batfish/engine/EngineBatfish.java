@@ -8,7 +8,7 @@ import java.nio.file.Path;
 import java.util.Collections;
 import java.util.Map;
 import java.util.SortedMap;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.UUID;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import org.apache.commons.collections4.map.LRUMap;
@@ -33,15 +33,14 @@ import org.batfish.vendor.VendorConfiguration;
  * construction, so the engine makes a cheap instance per request that shares these caches, the same
  * way Batfish's own worker does.
  *
- * <p>Snapshot ids are never reused: Batfish's topology caches are static and keyed by snapshot, so
- * a reused id in a long-lived JVM would answer from a stale topology.
+ * <p>Snapshot ids are never reused, including after process restarts: Batfish's topology caches are
+ * keyed by snapshot, and persisted configurations and data planes live under the same id. A
+ * process-local counter would overwrite inputs while silently reusing an earlier model on disk.
  */
 public final class EngineBatfish {
 
   /** The single network every snapshot of this tenant lives in. */
   public static final NetworkId NETWORK = new NetworkId("tenant");
-
-  private static final AtomicLong SNAPSHOT_COUNTER = new AtomicLong();
 
   private final Path _storageBase;
   private final BatfishLogger _logger;
@@ -61,9 +60,9 @@ public final class EngineBatfish {
     _vendorConfigurations = Caffeine.newBuilder().softValues().maximumSize(maxDataPlanes).build();
   }
 
-  /** A snapshot id that has never been used in this JVM. */
+  /** A new identity for both in-memory and persisted caches, including across process restarts. */
   public static @Nonnull SnapshotId freshSnapshotId(@Nonnull String prefix) {
-    return new SnapshotId(prefix + "-" + SNAPSHOT_COUNTER.incrementAndGet());
+    return new SnapshotId(prefix + "-" + UUID.randomUUID());
   }
 
   public static @Nonnull NetworkSnapshot snapshot(@Nonnull SnapshotId id) {

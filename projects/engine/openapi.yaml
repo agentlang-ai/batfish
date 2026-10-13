@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: NOCFlow Batfish engine
-  version: 1.4.1
+  version: 1.5.1
   description: >
     One tenant's what-if engine. NOCFlow puts a snapshot of the tenant's network
     (each device's redacted config text, the physical links, and the observed
@@ -359,13 +359,18 @@ components:
     QuestionName:
       type: string
       enum:
-        [routes, bgpSessionStatus, bgpSessionCompatibility, ospfSessionCompatibility, traceroute,
+        [routes, bgpSessionStatus, bgpSessionCompatibility, ospfSessionCompatibility, traceroute, testFilters,
          reachability, differentialReachability, layer3Edges, vxlanEdges, evpnRib, evpnL3VniProperties]
     QuestionParameters:
       type: object
       description: >
         The Batfish question's own parameters (for example `nodes`, `network`,
         `headers`, `startLocation`). Unknown parameters are rejected.
+        testFilters accepts nodes, filters, headers and startLocation; its answer
+        includes Node, Filter_Name, Flow, Action, Line_Content and Trace. It tests
+        a representative packet within the header constraints, not every packet
+        in a range. Pin every packet header and the ingress location, and compare
+        the returned Flow before attaching matched-line evidence to a path.
       additionalProperties: true
     DiffRequest:
       type: object

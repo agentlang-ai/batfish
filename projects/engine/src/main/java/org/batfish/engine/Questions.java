@@ -48,6 +48,7 @@ public final class Questions {
               "ospfSessionCompatibility",
               spec("org.batfish.question.ospfsession.OspfSessionCompatibilityQuestion"))
           .put("traceroute", spec("org.batfish.question.traceroute.TracerouteQuestion"))
+          .put("testFilters", spec("org.batfish.question.testfilters.TestFiltersQuestion"))
           .put(
               "reachability",
               spec("org.batfish.question.specifiers.SpecifiersReachabilityQuestion"))
