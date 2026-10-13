@@ -4,11 +4,16 @@ import static com.google.common.base.Preconditions.checkNotNull;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Map;
 import java.util.SortedMap;
 import java.util.UUID;
+import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import org.apache.commons.collections4.map.LRUMap;
@@ -103,6 +108,25 @@ public final class EngineBatfish {
     _dataPlanes.invalidate(ns);
     _environmentBgp.remove(ns);
     _vendorConfigurations.invalidate(ns);
+  }
+
+  /** Removes a snapshot's memory caches and disk artifacts, including partial builds. */
+  public void discard(@Nonnull SnapshotId id) {
+    evict(id);
+    Path dir =
+        storageBase()
+            .resolve("networks")
+            .resolve(NETWORK.getId())
+            .resolve("snapshots")
+            .resolve(id.getId());
+    if (!Files.exists(dir)) return;
+    try (Stream<Path> paths = Files.walk(dir)) {
+      for (Path path : paths.sorted(Comparator.reverseOrder()).toList()) {
+        Files.delete(path);
+      }
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
   }
 
   /** For tests only: seed the in-memory config cache, bypassing storage and post-processing. */

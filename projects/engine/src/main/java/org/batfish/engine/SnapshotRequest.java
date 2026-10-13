@@ -4,6 +4,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import java.util.List;
 import java.util.Set;
+import java.util.regex.Pattern;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
@@ -14,6 +15,8 @@ import javax.annotation.Nullable;
 public record SnapshotRequest(
     @Nonnull List<Device> devices, @Nonnull List<Link> layer1, @Nonnull Environment environment) {
 
+  private static final Pattern DEVICE_NAME = Pattern.compile("^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$");
+
   /** Optional parts may be omitted, as in the HTTP contract. */
   public SnapshotRequest {
     devices = ImmutableList.copyOf(devices);
@@ -22,8 +25,8 @@ public record SnapshotRequest(
   }
 
   /**
-   * One device. {@code name} is the tenant-unique lowered name, and must match the hostname in the
-   * config text (case-insensitively). {@code linuxInterfaces} is only used by {@link
+   * One device. {@code name} is a tenant-unique safe filename component. The engine uses its
+   * lowercase form as the config hostname. {@code linuxInterfaces} is only used by {@link
    * Dialect#FRR_LINUX}, whose addresses live in the kernel rather than the FRR config.
    */
   public record Device(
@@ -31,6 +34,17 @@ public record SnapshotRequest(
       @Nonnull Dialect dialect,
       @Nonnull String configText,
       @Nullable List<LinuxInterface> linuxInterfaces) {
+    public Device {
+      if (name == null || !DEVICE_NAME.matcher(name).matches()) {
+        throw new IllegalArgumentException(
+            "device name must be 1-128 safe filename characters, starting with a letter or digit");
+      }
+      if (dialect == null || configText == null) {
+        throw new IllegalArgumentException("device dialect and configText are required");
+      }
+      linuxInterfaces = linuxInterfaces == null ? null : ImmutableList.copyOf(linuxInterfaces);
+    }
+
     public Device(String name, Dialect dialect, String configText) {
       this(name, dialect, configText, null);
     }

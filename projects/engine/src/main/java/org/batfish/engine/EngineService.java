@@ -11,7 +11,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -19,6 +18,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
@@ -112,11 +112,20 @@ public final class EngineService implements AutoCloseable {
   private final EngineBatfish _engine;
   private final SnapshotBuilder _builder;
   private final Deriver _deriver;
+  private final Consumer<SnapshotBuilder.Built> _compute;
   private final ExecutorService _worker = Executors.newSingleThreadExecutor();
   private final Map<String, Entry> _snapshots = new ConcurrentHashMap<>();
   private final Map<String, Job> _jobs = new ConcurrentHashMap<>();
 
   public EngineService(@Nonnull EngineBatfish engine) {
+    this(
+        engine,
+        built ->
+            engine.batfish(built.id(), null).computeDataPlane(EngineBatfish.snapshot(built.id())));
+  }
+
+  EngineService(@Nonnull EngineBatfish engine, Consumer<SnapshotBuilder.Built> compute) {
+    _compute = compute;
     _engine = engine;
     _builder = new SnapshotBuilder(engine);
     _deriver = new Deriver(_builder);
@@ -262,8 +271,7 @@ public final class EngineService implements AutoCloseable {
     _snapshots.remove(id);
     SnapshotBuilder.Built built = e.built;
     if (built != null) {
-      _engine.evict(built.id());
-      deleteRecursively(_builder.snapshotDir(built.id()));
+      _engine.discard(built.id());
     }
   }
 
@@ -280,14 +288,21 @@ public final class EngineService implements AutoCloseable {
         () -> {
           _jobs.put(jobId, new Job(jobId, kind, entry.id, Status.running, null));
           entry.status = Status.running;
+          SnapshotBuilder.Built built = null;
           try {
-            SnapshotBuilder.Built built = work.get();
-            Batfish bf = _engine.batfish(built.id(), null);
-            bf.computeDataPlane(EngineBatfish.snapshot(built.id()));
+            built = work.get();
+            _compute.accept(built);
             entry.built = built;
             entry.status = Status.done;
             _jobs.put(jobId, new Job(jobId, kind, entry.id, Status.done, null));
           } catch (RuntimeException | Error ex) {
+            if (built != null) {
+              try {
+                _engine.discard(built.id());
+              } catch (RuntimeException cleanup) {
+                ex.addSuppressed(cleanup);
+              }
+            }
             entry.error = String.valueOf(ex.getMessage());
             entry.status = Status.failed;
             _jobs.put(jobId, new Job(jobId, kind, entry.id, Status.failed, entry.error));
@@ -342,19 +357,6 @@ public final class EngineService implements AutoCloseable {
       byte[] json = BatfishObjectMapper.writer().writeValueAsString(o).getBytes(UTF_8);
       return Hashing.sha256().hashBytes(json).toString();
     } catch (JsonProcessingException e) {
-      throw new UncheckedIOException(e);
-    }
-  }
-
-  private static void deleteRecursively(Path dir) {
-    if (!Files.exists(dir)) {
-      return;
-    }
-    try (Stream<Path> paths = Files.walk(dir)) {
-      for (Path p : paths.sorted(Comparator.reverseOrder()).toList()) {
-        Files.delete(p);
-      }
-    } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
   }

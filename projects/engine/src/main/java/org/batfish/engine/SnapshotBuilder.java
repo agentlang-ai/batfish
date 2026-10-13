@@ -64,6 +64,24 @@ public final class SnapshotBuilder {
 
   public @Nonnull Built build(@Nonnull SnapshotRequest request) {
     SnapshotId id = EngineBatfish.freshSnapshotId("snap");
+    return build(id, request);
+  }
+
+  /** Builds under a caller-owned internal identity and reclaims partial work on failure. */
+  Built build(SnapshotId id, SnapshotRequest request) {
+    try {
+      return buildInputs(id, request);
+    } catch (RuntimeException | Error failure) {
+      try {
+        _engine.discard(id);
+      } catch (RuntimeException cleanup) {
+        failure.addSuppressed(cleanup);
+      }
+      throw failure;
+    }
+  }
+
+  private Built buildInputs(SnapshotId id, SnapshotRequest request) {
     writeInputs(id, request);
     Batfish bf = _engine.batfish(id, null);
     NetworkSnapshot snapshot = EngineBatfish.snapshot(id);
@@ -115,8 +133,11 @@ public final class SnapshotBuilder {
       Files.createDirectories(configs);
       Files.createDirectories(batfishDir);
       for (Device device : request.devices()) {
-        Files.writeString(
-            configs.resolve(fileName(device.name())), InputComposer.compose(device).text(), UTF_8);
+        Path target = configs.resolve(fileName(device.name())).normalize();
+        if (!target.getParent().equals(configs.normalize())) {
+          throw new IllegalArgumentException("device configuration must stay inside configs");
+        }
+        Files.writeString(target, InputComposer.compose(device).text(), UTF_8);
       }
       if (!request.layer1().isEmpty()) {
         Layer1Topology l1 =

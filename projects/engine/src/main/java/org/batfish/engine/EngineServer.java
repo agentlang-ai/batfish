@@ -15,6 +15,7 @@ import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -66,13 +67,26 @@ public final class EngineServer implements AutoCloseable {
 
   private final EngineService _service;
   private final HttpServer _server;
+  private final ExecutorService _executor;
 
   public EngineServer(@Nonnull EngineService service, @Nonnull InetSocketAddress address)
       throws IOException {
+    this(service, address, Executors.newFixedThreadPool(8));
+  }
+
+  /** The server owns and closes the supplied request executor. */
+  EngineServer(EngineService service, InetSocketAddress address, ExecutorService executor)
+      throws IOException {
     _service = service;
-    _server = HttpServer.create(address, 0);
+    _executor = executor;
+    try {
+      _server = HttpServer.create(address, 0);
+    } catch (IOException | RuntimeException failure) {
+      executor.shutdownNow();
+      throw failure;
+    }
     _server.createContext("/", this::handle);
-    _server.setExecutor(Executors.newFixedThreadPool(8));
+    _server.setExecutor(_executor);
   }
 
   public void start() {
@@ -85,7 +99,11 @@ public final class EngineServer implements AutoCloseable {
 
   @Override
   public void close() {
-    _server.stop(0);
+    try {
+      _server.stop(0);
+    } finally {
+      _executor.shutdownNow();
+    }
   }
 
   private void handle(HttpExchange ex) throws IOException {

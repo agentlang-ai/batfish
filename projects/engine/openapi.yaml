@@ -213,7 +213,8 @@ components:
       properties:
         name:
           type: string
-          description: Tenant-unique lowered name; must match the config's hostname.
+          pattern: "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+          description: Tenant-unique name using safe filename characters; the engine sets the config hostname to its lowercase form.
         dialect: { $ref: "#/components/schemas/Dialect" }
         configText:
           type: string
