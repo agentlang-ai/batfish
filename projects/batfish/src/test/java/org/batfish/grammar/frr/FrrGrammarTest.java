@@ -2679,6 +2679,12 @@ public class FrrGrammarTest {
   }
 
   @Test
+  public void testClearInterfaceShutdown() {
+    parseLines("interface eth1", "shutdown", "no shutdown");
+    assertFalse(_frr.getInterfaces().get("eth1").getShutdown());
+  }
+
+  @Test
   public void testGetInterfaceShutdown() {
     parseLines("interface eth1", "ip address 1.1.1.1/30");
     assertFalse(_frr.getInterfaces().get("eth1").getShutdown());

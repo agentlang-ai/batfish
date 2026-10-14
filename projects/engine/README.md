@@ -48,8 +48,10 @@ engine build. This endpoint does not persist the in-memory snapshot/job registry
 API 1.1.0 accepts `{device, configText}` as an alternative to `{device, lines}` in
 derive requests. Supply exactly one form. Replacement text is a full native
 configuration, not a command delta; deployment commands belong to the caller's
-reviewed proposal. Linux interfaces with `up: false` are modeled line-down even
-when not separately listed in `environment.interfacesDown`.
+reviewed proposal. Linux interface `up` records the administrative kernel IFF_UP flag. An
+interface with `up: false` is composed as FRR `shutdown`, so a candidate
+`no shutdown` can restore it. Explicit `environment.interfacesDown` records
+physical line outages and remains down even after an administrative repair.
 
 ## Packet paths and ACL evidence
 

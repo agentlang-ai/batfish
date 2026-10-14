@@ -961,7 +961,7 @@ public class FrrConfigurationBuilder extends FrrParserBaseListener implements Si
 
   @Override
   public void exitSi_shutdown(Si_shutdownContext ctx) {
-    _currentInterface.setShutdown(true);
+    _currentInterface.setShutdown(ctx.NO() == null);
   }
 
   @Override
