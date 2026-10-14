@@ -52,6 +52,16 @@ public final class DeriverTest {
   }
 
   @Test
+  public void frrExplicitNoEnforceFirstAsRetainsRoutingWithoutCoverageHoles() {
+    Deriver.Derived derived =
+        derive(
+            Fixtures.frrOspfBgp(),
+            new Change("r1", List.of("router bgp 65001", "no bgp enforce-first-as")));
+    assertThat(derived.introduced(), empty());
+    assertThat(routes(dataPlane(derived.snapshot()), "r2", "10.1.0.0/24"), hasSize(1));
+  }
+
+  @Test
   public void frrNoShutdownRestoresInterface() {
     Deriver.Derived d =
         derive(

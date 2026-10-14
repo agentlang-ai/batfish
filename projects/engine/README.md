@@ -108,3 +108,12 @@ clients may distinguish plain IPv4 unicast from multicast-dependent forwarding;
 unknown families and tunnel transport dependencies must remain conservative.
 The exact EOS `system l1` mode header and `radius-server` management commands are
 classified as management, while unknown forwarding commands remain unclassified.
+
+Engine implementation 1.6.3 (API schema unchanged) models FRR global `bgp enforce-first-as` and `no bgp enforce-first-as` statements are
+modeled explicitly per VRF and converted to the peer's first-AS check. This
+preserves the existing behavior for inputs without an explicit setting;
+per-neighbor enforcement overrides remain unsupported and produce coverage
+holes. FRR's version compatibility can cause a retained FRR 8 configuration
+loaded by FRR 10 to emit `no bgp enforce-first-as`; this is forwarding behavior,
+not management noise. See the [FRR BGP command documentation](https://docs.frrouting.org/en/stable-10.2/bgp.html#enforce-first-as)
+and [version-dependent defaults](https://github.com/FRRouting/frr/blob/master/doc/user/basic.rst).
