@@ -25,6 +25,23 @@ bazel build //projects/engine:engine_main_deploy.jar
 ENGINE_PORT=9800 java -jar bazel-bin/projects/engine/engine_main_deploy.jar
 ```
 
+For engine changes involving FRR parsing or conversion, run all three regression
+suites together from the repository root. Use Bazelisk (available as either
+`bazel` or `bazelisk`) to select the version pinned in `.bazelversion`:
+
+```sh
+bazelisk test \
+  //projects/engine:engine_tests \
+  //projects/batfish/src/test/java/org/batfish/grammar/frr:tests \
+  //projects/batfish/src/test/java/org/batfish/representation/frr:tests \
+  --lockfile_mode=off --nocache_test_results --test_output=errors
+```
+
+`--lockfile_mode=off` keeps regression verification from updating the dependency
+lockfile; `--nocache_test_results` executes tests even when matching results exist.
+The engine suite includes candidate administrative repairs, physical outage
+preservation, coverage classification, HTTP contracts and golden model fixtures.
+
 ## Dialects
 
 | Dialect | Input | Notes |
