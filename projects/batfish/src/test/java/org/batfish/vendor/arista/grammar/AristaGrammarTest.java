@@ -3526,6 +3526,16 @@ public class AristaGrammarTest {
   }
 
   @Test
+  public void testExtendedAclSequenceReentry() {
+    Configuration c = parseConfig("arista_acl_sequence_reentry");
+    List<AclLine> lines = c.getIpAccessLists().get("HTTPS").getLines();
+    assertThat(lines, hasSize(2));
+    assertThat(
+        lines.get(0).getName(), equalTo("5 deny tcp host 10.77.255.1 eq 443 host 10.77.10.1"));
+    assertThat(lines.get(1).getName(), equalTo("10 permit ip any any"));
+  }
+
+  @Test
   public void testParseBgpShowRunAll() {
     AristaConfiguration c = parseVendorConfig("arista_bgp_show_run_all");
     // Test relies on route-maps configured as the last line of specific address families.
