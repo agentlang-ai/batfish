@@ -646,7 +646,13 @@ acl_extended
   (
     extended_access_list_tail // not validated
     | extended_access_list_null_tail // not validated
+    | acl_extended_no
   )*
+;
+
+acl_extended_no
+:
+  NO seq = dec NEWLINE
 ;
 
 acl_standard
