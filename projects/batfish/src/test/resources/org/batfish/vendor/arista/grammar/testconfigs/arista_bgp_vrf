@@ -24,6 +24,19 @@ router bgp 1
     route-target export evpn 65000:300
     route-target export evpn 65000:400
 
+! Re-enter only MULTI and remove temporary targets, retaining the other VRFs.
+router bgp 1
+  vrf MULTI
+    route-target import evpn 65000:500
+    route-target export evpn 65000:600
+!
+router bgp 1
+  vrf MULTI
+    no route-target import evpn 65000:500
+    no route-target export evpn 65000:600
+    no route-target import evpn 65000:999
+    no route-target export evpn 65000:999
+
 vrf instance FOO
 vrf instance BAR
 vrf instance MULTI
