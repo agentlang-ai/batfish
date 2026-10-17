@@ -2661,7 +2661,7 @@ public class AristaGrammarTest {
       assertThat(vrf.getClusterId(), nullValue());
     }
     {
-      // A VRF may declare multiple import and export EVPN route targets; all are retained.
+      // Re-entry and scoped negation remove only the named targets; other targets remain.
       AristaBgpVrf vrf = config.getAristaBgp().getVrfs().get("MULTI");
       assertThat(vrf.getRouteDistinguisher(), equalTo(RouteDistinguisher.parse("123:456")));
       assertThat(

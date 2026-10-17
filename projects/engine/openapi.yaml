@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: NOCFlow Batfish engine
-  version: 1.6.5
+  version: 1.6.6
   description: >
     One tenant's what-if engine. NOCFlow puts a snapshot of the tenant's network
     (each device's redacted config text, the physical links, and the observed
