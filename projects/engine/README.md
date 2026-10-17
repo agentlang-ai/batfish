@@ -126,7 +126,7 @@ unknown families and tunnel transport dependencies must remain conservative.
 The exact EOS `system l1` mode header and `radius-server` management commands are
 classified as management, while unknown forwarding commands remain unclassified.
 
-Engine implementation 1.6.3 (API schema unchanged) models FRR global `bgp enforce-first-as` and `no bgp enforce-first-as` statements are
+Engine implementation 1.6.6 (API schema unchanged) supports scoped `no route-target import/export evpn` removal within an Arista BGP VRF while preserving unrelated targets and VRFs. It also evaluates Arista extended ACL entries in sequence order, including entries inserted by re-entering an existing ACL, replacements at an existing sequence and `no <sequence>` removal. This prevents an appended lower-sequence deny from being evaluated after an earlier permit and allows a precise correction to remove only that deny. FRR global `bgp enforce-first-as` and `no bgp enforce-first-as` statements are
 modeled explicitly per VRF and converted to the peer's first-AS check. This
 preserves the existing behavior for inputs without an explicit setting;
 per-neighbor enforcement overrides remain unsupported and produce coverage

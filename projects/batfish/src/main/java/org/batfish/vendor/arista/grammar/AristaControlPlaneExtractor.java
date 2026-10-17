@@ -309,6 +309,7 @@ import org.batfish.vendor.arista.grammar.AristaParser.Access_list_actionContext;
 import org.batfish.vendor.arista.grammar.AristaParser.Access_list_ip6_rangeContext;
 import org.batfish.vendor.arista.grammar.AristaParser.Access_list_ip_rangeContext;
 import org.batfish.vendor.arista.grammar.AristaParser.Acl_extendedContext;
+import org.batfish.vendor.arista.grammar.AristaParser.Acl_extended_noContext;
 import org.batfish.vendor.arista.grammar.AristaParser.Acl_ipv4_matchContext;
 import org.batfish.vendor.arista.grammar.AristaParser.Acl_standardContext;
 import org.batfish.vendor.arista.grammar.AristaParser.Aclstd_action_lineContext;
@@ -1475,6 +1476,11 @@ public class AristaControlPlaneExtractor extends AristaParserBaseListener
   @Override
   public void exitAcl_extended(Acl_extendedContext ctx) {
     _currentExtendedAcl = null;
+  }
+
+  @Override
+  public void exitAcl_extended_no(Acl_extended_noContext ctx) {
+    _currentExtendedAcl.removeLine(toLong(ctx.seq));
   }
 
   @Override
@@ -3642,10 +3648,18 @@ public class AristaControlPlaneExtractor extends AristaParserBaseListener
       return;
     }
     if (ctx.EXPORT() != null) {
-      _currentAristaBgpVrf.addExportRouteTarget(toRouteTarget(ctx.rt));
+      if (ctx.NO() != null) {
+        _currentAristaBgpVrf.removeExportRouteTarget(toRouteTarget(ctx.rt));
+      } else {
+        _currentAristaBgpVrf.addExportRouteTarget(toRouteTarget(ctx.rt));
+      }
     }
     if (ctx.IMPORT() != null) {
-      _currentAristaBgpVrf.addImportRouteTarget(toRouteTarget(ctx.rt));
+      if (ctx.NO() != null) {
+        _currentAristaBgpVrf.removeImportRouteTarget(toRouteTarget(ctx.rt));
+      } else {
+        _currentAristaBgpVrf.addImportRouteTarget(toRouteTarget(ctx.rt));
+      }
     }
   }
 
@@ -4692,7 +4706,11 @@ public class AristaControlPlaneExtractor extends AristaParserBaseListener
             .setServiceSpecifier(serviceSpecifier)
             .setSrcAddressSpecifier(srcAddressSpecifier)
             .build();
-    _currentExtendedAcl.addLine(line);
+    if (ctx.num == null) {
+      _currentExtendedAcl.addLine(line);
+    } else {
+      _currentExtendedAcl.addLine(toLong(ctx.num), line);
+    }
 
     // structure definition tracking
     String structName = aclLineStructureName(_currentExtendedAcl.getName(), name);

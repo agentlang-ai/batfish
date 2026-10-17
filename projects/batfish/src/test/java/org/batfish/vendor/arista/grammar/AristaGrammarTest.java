@@ -2661,7 +2661,7 @@ public class AristaGrammarTest {
       assertThat(vrf.getClusterId(), nullValue());
     }
     {
-      // A VRF may declare multiple import and export EVPN route targets; all are retained.
+      // Re-entry and scoped negation remove only the named targets; other targets remain.
       AristaBgpVrf vrf = config.getAristaBgp().getVrfs().get("MULTI");
       assertThat(vrf.getRouteDistinguisher(), equalTo(RouteDistinguisher.parse("123:456")));
       assertThat(
@@ -3523,6 +3523,16 @@ public class AristaGrammarTest {
                     filename,
                     AristaStructureType.IPV4_ACCESS_LIST_EXTENDED_LINE.getDescription(),
                     aclLineStructureName(extendedAclName, extended.getName())))));
+  }
+
+  @Test
+  public void testExtendedAclSequenceReentry() {
+    Configuration c = parseConfig("arista_acl_sequence_reentry");
+    List<AclLine> lines = c.getIpAccessLists().get("HTTPS").getLines();
+    assertThat(lines, hasSize(2));
+    assertThat(
+        lines.get(0).getName(), equalTo("5 deny tcp host 10.77.255.1 eq 443 host 10.77.10.1"));
+    assertThat(lines.get(1).getName(), equalTo("10 permit ip any any"));
   }
 
   @Test
