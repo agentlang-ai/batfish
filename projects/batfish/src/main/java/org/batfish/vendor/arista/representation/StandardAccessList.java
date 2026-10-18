@@ -30,7 +30,6 @@ public class StandardAccessList implements Serializable {
   public ExtendedAccessList toExtendedAccessList() {
     ExtendedAccessList eal = new ExtendedAccessList(_name);
     eal.setParent(this);
-    eal.getLines().clear();
     _lines.forEach((seq, line) -> line.toExtendedAccessListLine().ifPresent(eal::addLine));
     return eal;
   }

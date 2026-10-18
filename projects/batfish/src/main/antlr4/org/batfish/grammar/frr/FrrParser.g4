@@ -157,6 +157,7 @@ s_no
   (
      sno_ip
      | sno_ipv6
+     | sno_routemap
   )
 ;
 
@@ -165,6 +166,7 @@ sno_ip
    IP
    (
       snoip_forwarding
+      | ip_route
    )
 ;
 

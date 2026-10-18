@@ -1,0 +1,10 @@
+!RANCID-CONTENT-TYPE: arista
+hostname arista_acl_sequence_reentry
+ip access-list HTTPS
+  10 permit ip any any
+!
+ip access-list HTTPS
+  5 deny tcp host 10.77.255.1 eq 443 host 10.77.10.1
+  20 deny ip any any
+  no 20
+!

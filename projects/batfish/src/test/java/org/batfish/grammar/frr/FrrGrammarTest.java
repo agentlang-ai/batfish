@@ -1340,6 +1340,43 @@ public class FrrGrammarTest {
   }
 
   @Test
+  public void testNoIpRouteRemovesOnlyMatchingNextHop() {
+    parse(
+        "ip route 10.1.0.0/24 Null0\n"
+            + "ip route 10.1.0.0/24 10.0.0.1\n"
+            + "ip route 10.2.0.0/24 Null0\n"
+            + "no ip route 10.1.0.0/24 null0 1\n"
+            + "no ip route 10.3.0.0/24 Null0\n");
+    assertThat(
+        _frr.getStaticRoutes(),
+        equalTo(
+            ImmutableSet.of(
+                new StaticRoute(Prefix.parse("10.1.0.0/24"), Ip.parse("10.0.0.1"), null, null),
+                new StaticRoute(Prefix.parse("10.2.0.0/24"), null, "Null0", null))));
+    assertTrue(_warnings.getParseWarnings().isEmpty());
+  }
+
+  @Test
+  public void testNoIpRoutePreservesOtherVrfAndNextHop() {
+    _frr.getVrfs().put("BLUE", new Vrf("BLUE"));
+    parse(
+        "ip route 10.1.0.0/24 Null0\n"
+            + "ip route 10.1.0.0/24 Null0 vrf BLUE\n"
+            + "ip route 10.1.0.0/24 Null0 100 vrf BLUE\n"
+            + "ip route 10.1.0.0/24 10.0.0.1 100 vrf BLUE\n"
+            + "ip route 10.1.0.0/24 reject vrf BLUE\n"
+            + "no ip route 10.1.0.0/24 Null0 1 vrf BLUE\n");
+    assertThat(_frr.getStaticRoutes(), hasSize(1));
+    assertThat(
+        _frr.getVrfs().get("BLUE").getStaticRoutes(),
+        equalTo(
+            ImmutableSet.of(
+                new StaticRoute(Prefix.parse("10.1.0.0/24"), Ip.parse("10.0.0.1"), null, 100),
+                new StaticRoute(Prefix.parse("10.1.0.0/24"), null, "reject", null))));
+    assertTrue(_warnings.getParseWarnings().isEmpty());
+  }
+
+  @Test
   public void testFrrVrf_noExit() {
     Vrf vrf = new Vrf("NAME");
     _frr.getVrfs().put("NAME", vrf);
@@ -1377,6 +1414,48 @@ public class FrrGrammarTest {
             computeRouteMapEntryName(name, 10),
             FrrStructureUsage.ROUTE_MAP_ENTRY_SELF_REFERENCE),
         contains(1));
+  }
+
+  @Test
+  public void testFrrRouteMapRemoval() {
+    parseLines(
+        "route-map KEEP permit 10",
+        "route-map KEEP deny 20",
+        "route-map OTHER permit 10",
+        "no route-map KEEP deny 10",
+        "no route-map MISSING permit 10");
+    assertThat(_frr.getRouteMaps().get("KEEP").getEntries().keySet(), equalTo(ImmutableSet.of(20)));
+    assertThat(
+        _frr.getRouteMaps().get("OTHER").getEntries().keySet(), equalTo(ImmutableSet.of(10)));
+    assertTrue(_warnings.getParseWarnings().isEmpty());
+  }
+
+  @Test
+  public void testFrrRouteMapRemovalAndRecreation() {
+    parseLines(
+        "route-map RM deny 10",
+        " match ip address prefix-list OLD",
+        "route-map RM permit 20",
+        "route-map OTHER permit 10",
+        "no route-map RM deny 10",
+        "route-map RM permit 10");
+    RouteMap rm = _frr.getRouteMaps().get("RM");
+    assertThat(rm.getEntries().keySet(), equalTo(ImmutableSet.of(10, 20)));
+    assertThat(rm.getEntries().get(10).getAction(), equalTo(LineAction.PERMIT));
+    assertNull(rm.getEntries().get(10).getMatchIpAddressPrefixList());
+    assertTrue(_warnings.getParseWarnings().isEmpty());
+  }
+
+  @Test
+  public void testFrrRouteMapAllRemoval() {
+    parseLines(
+        "route-map RM permit 10",
+        "route-map RM deny 20",
+        "route-map OTHER permit 10",
+        "no route-map RM",
+        "no route-map MISSING");
+    assertThat(_frr.getRouteMaps().keySet(), equalTo(ImmutableSet.of("OTHER")));
+    assertTrue(_warnings.getParseWarnings().isEmpty());
   }
 
   @Test

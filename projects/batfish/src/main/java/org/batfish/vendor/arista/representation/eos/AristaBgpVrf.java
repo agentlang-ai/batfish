@@ -221,6 +221,10 @@ public final class AristaBgpVrf implements Serializable {
     _exportRouteTargets.add(exportRouteTarget);
   }
 
+  public void removeExportRouteTarget(ExtendedCommunity exportRouteTarget) {
+    _exportRouteTargets.remove(exportRouteTarget);
+  }
+
   public @Nonnull AristaBgpVrfEvpnAddressFamily getOrCreateEvpnAf() {
     if (_evpnAf == null) {
       _evpnAf = new AristaBgpVrfEvpnAddressFamily();
@@ -267,6 +271,10 @@ public final class AristaBgpVrf implements Serializable {
 
   public void addImportRouteTarget(ExtendedCommunity importRouteTarget) {
     _importRouteTargets.add(importRouteTarget);
+  }
+
+  public void removeImportRouteTarget(ExtendedCommunity importRouteTarget) {
+    _importRouteTargets.remove(importRouteTarget);
   }
 
   /** Hold timer, in seconds */
